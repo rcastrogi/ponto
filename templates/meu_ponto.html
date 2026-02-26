@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}Meu Ponto{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Clock and Punch Button -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 punch-card">
+                <div class="card-body text-center p-5">
+                    <h5 class="text-muted mb-2">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        {{ today.strftime('%d/%m/%Y') }} - 
+                        {% set dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'] %}
+                        {{ dias[today.weekday()] }}
+                    </h5>
+                    <div id="relogio" class="display-2 fw-bold text-primary my-3">--:--:--</div>
+                    
+                    {% if proximo_tipo != 'completo' %}
+                    <form method="POST" action="{{ url_for('registrar_ponto') }}">
+                        <button type="submit" class="btn btn-lg punch-btn 
+                            {% if proximo_tipo == 'entrada' %}btn-success
+                            {% elif proximo_tipo == 'saida_almoco' %}btn-warning
+                            {% elif proximo_tipo == 'retorno_almoco' %}btn-info
+                            {% elif proximo_tipo == 'saida' %}btn-danger
+                            {% endif %}" id="btnPonto">
+                            <i class="bi bi-hand-index-thumb me-2"></i>
+                            Registrar 
+                            {% if proximo_tipo == 'entrada' %}Entrada
+                            {% elif proximo_tipo == 'saida_almoco' %}Saída Almoço
+                            {% elif proximo_tipo == 'retorno_almoco' %}Retorno Almoço
+                            {% elif proximo_tipo == 'saida' %}Saída
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-success d-inline-block mt-2">
+                        <i class="bi bi-check-circle me-2"></i>
+                        Todas as batidas do dia foram registradas!
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Today Status -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock me-2 text-primary"></i>Hoje
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="p-3 rounded-3 bg-success bg-opacity-10 text-center">
+                                <small class="text-muted d-block">Entrada</small>
+                                <span class="fs-4 fw-bold text-success">
+                                    {{ registro_hoje.entrada if registro_hoje and registro_hoje.entrada else '--:--' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 rounded-3 bg-warning bg-opacity-10 text-center">
+                                <small class="text-muted d-block">Saída Almoço</small>
+                                <span class="fs-4 fw-bold text-warning">
+                                    {{ registro_hoje.saida_almoco if registro_hoje and registro_hoje.saida_almoco else '--:--' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 rounded-3 bg-info bg-opacity-10 text-center">
+                                <small class="text-muted d-block">Retorno Almoço</small>
+                                <span class="fs-4 fw-bold text-info">
+                                    {{ registro_hoje.retorno_almoco if registro_hoje and registro_hoje.retorno_almoco else '--:--' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 rounded-3 bg-danger bg-opacity-10 text-center">
+                                <small class="text-muted d-block">Saída</small>
+                                <span class="fs-4 fw-bold text-danger">
+                                    {{ registro_hoje.saida if registro_hoje and registro_hoje.saida else '--:--' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Horas Hoje</h6>
+                            <h3 class="mb-0 fw-bold">
+                                {{ '%.2f'|format(registro_hoje.horas_trabalhadas if registro_hoje else 0) }}h
+                            </h3>
+                            {% if tipo_dia_hoje == 'especial' %}
+                            <small class="text-info"><i class="bi bi-star me-1"></i>{{ feriado_hoje or 'Domingo' }} ({{ colaborador.horas_dia_especial or 6 }}h)</small>
+                            {% endif %}
+                        </div>
+                        <div class="text-primary opacity-50">
+                            <i class="bi bi-clock" style="font-size: 2.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-success border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Horas na Semana</h6>
+                            <h3 class="mb-0 fw-bold {% if horas_semana > (colaborador.max_horas_semana or 40) %}text-danger{% endif %}">
+                                {{ '%.2f'|format(horas_semana) }}h
+                            </h3>
+                            <small class="text-muted">Máx: {{ colaborador.max_horas_semana or 40 }}h</small>
+                            {% if horas_just_semana > 0 %}
+                            <br><small class="text-info"><i class="bi bi-file-earmark-medical me-1"></i>{{ '%.2f'|format(horas_just_semana) }}h justificadas</small>
+                            {% endif %}
+                        </div>
+                        <div class="text-success opacity-50">
+                            <i class="bi bi-calendar-week" style="font-size: 2.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">H. Extras Semana</h6>
+                            <h3 class="mb-0 fw-bold {{ 'text-danger' if resumo_sem.horas_extras > 0 else 'text-muted' }}">
+                                {{ '%.2f'|format(resumo_sem.horas_extras) }}h
+                            </h3>
+                            <small class="text-muted">{{ resumo_sem.dias_trabalhados }} dia(s) trab.</small>
+                        </div>
+                        <div class="text-warning opacity-50">
+                            <i class="bi bi-alarm" style="font-size: 2.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-info border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Horas no Mês</h6>
+                            <h3 class="mb-0 fw-bold">{{ '%.2f'|format(horas_mes) }}h</h3>
+                            {% if horas_just_mes > 0 %}
+                            <small class="text-info"><i class="bi bi-file-earmark-medical me-1"></i>{{ '%.2f'|format(horas_just_mes) }}h justificadas</small>
+                            {% endif %}
+                            {% if horas_extras_mes > 0 %}
+                            <br><small class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>{{ '%.2f'|format(horas_extras_mes) }}h extras</small>
+                            {% endif %}
+                        </div>
+                        <div class="text-info opacity-50">
+                            <i class="bi bi-calendar-month" style="font-size: 2.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weekly Table -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-table me-2 text-primary"></i>Registros da Semana
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data</th>
+                            <th class="text-center">Entrada</th>
+                            <th class="text-center">Saída Almoço</th>
+                            <th class="text-center">Retorno Almoço</th>
+                            <th class="text-center">Saída</th>
+                            <th class="text-center">Horas</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in registros_semana %}
+                        {% set dias_semana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] %}
+                        {% set d = r.data %}
+                        <tr>
+                            <td>
+                                <strong>{{ d[8:10] }}/{{ d[5:7] }}</strong>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-success bg-opacity-10 text-success">
+                                    {{ r.entrada or '-' }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-warning bg-opacity-10 text-warning">
+                                    {{ r.saida_almoco or '-' }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info bg-opacity-10 text-info">
+                                    {{ r.retorno_almoco or '-' }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-danger bg-opacity-10 text-danger">
+                                    {{ r.saida or '-' }}
+                                </span>
+                            </td>
+                            <td class="text-center fw-bold">{{ '%.2f'|format(r.horas_trabalhadas) }}h</td>
+                            <td class="text-center">
+                                {% if r.status == 'completo' %}
+                                <span class="badge bg-success">Completo</span>
+                                {% elif r.status == 'em_andamento' %}
+                                <span class="badge bg-warning text-dark">Em andamento</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Incompleto</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                Nenhum registro nesta semana.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-calendar-month me-2 text-primary"></i>Registros do Mês
+            </h5>
+            <span class="badge bg-primary fs-6">Total: {{ '%.2f'|format(horas_mes) }}h</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data</th>
+                            <th class="text-center">Entrada</th>
+                            <th class="text-center">Saída Almoço</th>
+                            <th class="text-center">Retorno Almoço</th>
+                            <th class="text-center">Saída</th>
+                            <th class="text-center">Horas</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in registros_mes %}
+                        <tr>
+                            <td><strong>{{ r.data[8:10] }}/{{ r.data[5:7] }}/{{ r.data[0:4] }}</strong></td>
+                            <td class="text-center">{{ r.entrada or '-' }}</td>
+                            <td class="text-center">{{ r.saida_almoco or '-' }}</td>
+                            <td class="text-center">{{ r.retorno_almoco or '-' }}</td>
+                            <td class="text-center">{{ r.saida or '-' }}</td>
+                            <td class="text-center fw-bold">{{ '%.2f'|format(r.horas_trabalhadas) }}h</td>
+                            <td class="text-center">
+                                {% if r.status == 'completo' %}
+                                <span class="badge bg-success">Completo</span>
+                                {% elif r.status == 'em_andamento' %}
+                                <span class="badge bg-warning text-dark">Em andamento</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Incompleto</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

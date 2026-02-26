@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Relatório - {{ colaborador.nome }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3><i class="bi bi-bar-chart me-2"></i>{{ colaborador.nome }}</h3>
+            <span class="text-muted">{{ colaborador.cargo }} | {{ colaborador.email }}</span>
+        </div>
+        <div>
+            <a href="{{ url_for('exportar_excel', colab_id=colaborador.id, mes=mes) }}"
+               class="btn btn-success me-2">
+                <i class="bi bi-file-earmark-excel me-1"></i>Exportar Excel
+            </a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Month Selector -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="GET" class="row align-items-end g-3">
+                <div class="col-auto">
+                    <label for="mes" class="form-label">Período:</label>
+                    <input type="month" class="form-control" id="mes" name="mes" value="{{ mes }}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search me-1"></i>Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Dias Trab.</h6>
+                    <h2 class="fw-bold mb-0">{{ total_dias }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start border-success border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Horas Totais</h6>
+                    <h2 class="fw-bold mb-0 text-success">{{ '%.2f'|format(total_horas_mes) }}h</h2>
+                </div>
+            </div>
+        </div>
+        {% if horas_justificadas_mes > 0 %}
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start border-info border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Justificadas</h6>
+                    <h2 class="fw-bold mb-0 text-info">{{ '%.2f'|format(horas_justificadas_mes) }}h</h2>
+                    <small class="text-muted">{{ dias_justificados }} dia(s)</small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start border-secondary border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Esperadas</h6>
+                    <h2 class="fw-bold mb-0 text-secondary">{{ '%.2f'|format(horas_esperadas) }}h</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start border-danger border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">H. Extras</h6>
+                    <h2 class="fw-bold mb-0 text-danger">
+                        {{ '%.2f'|format(total_horas_extras_mes) }}h
+                    </h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card shadow-sm border-0 border-start {{ 'border-success' if banco_horas >= 0 else 'border-danger' }} border-4">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Banco Horas</h6>
+                    <h2 class="fw-bold mb-0 {{ 'text-success' if banco_horas >= 0 else 'text-danger' }}">
+                        {{ '+' if banco_horas > 0 else '' }}{{ '%.2f'|format(banco_horas) }}h
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weekly Breakdown -->
+    {% for semana_label, semana_data in semanas.items() %}
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white border-bottom d-flex justify-content-between">
+            <h6 class="mb-0">
+                <i class="bi bi-calendar-week me-2 text-primary"></i>Semana: {{ semana_label }}
+            </h6>
+            <div>
+                <span class="badge bg-primary fs-6">{{ '%.2f'|format(semana_data.total_horas) }}h</span>
+                {% if semana_data.horas_justificadas > 0 %}
+                <span class="badge bg-info fs-6 ms-1"><i class="bi bi-file-earmark-medical me-1"></i>{{ '%.2f'|format(semana_data.horas_justificadas) }}h just.</span>
+                {% endif %}
+                {% if semana_data.horas_extras > 0 %}
+                <span class="badge bg-danger fs-6 ms-1">+{{ '%.2f'|format(semana_data.horas_extras) }}h extras</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data</th>
+                            <th class="text-center">Entrada</th>
+                            <th class="text-center">Saída Almoço</th>
+                            <th class="text-center">Retorno</th>
+                            <th class="text-center">Saída</th>
+                            <th class="text-center">Horas</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in semana_data.registros %}
+                        <tr>
+                            <td>{{ r.data[8:10] }}/{{ r.data[5:7] }}/{{ r.data[0:4] }}</td>
+                            <td class="text-center">{{ r.entrada or '-' }}</td>
+                            <td class="text-center">{{ r.saida_almoco or '-' }}</td>
+                            <td class="text-center">{{ r.retorno_almoco or '-' }}</td>
+                            <td class="text-center">{{ r.saida or '-' }}</td>
+                            <td class="text-center fw-bold">{{ '%.2f'|format(r.horas_trabalhadas) }}h</td>
+                            <td class="text-center">
+                                <a href="{{ url_for('editar_registro', reg_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Justifications -->
+    {% if justificativas %}
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-file-earmark-medical me-2 text-warning"></i>Justificativas no Período
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Período</th>
+                            <th>Dias</th>
+                            <th>Descrição</th>
+                            <th class="text-center">Anexo</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for j in justificativas %}
+                        <tr>
+                            <td><span class="badge bg-info">{{ j.tipo }}</span></td>
+                            <td>{{ j.data_inicio[8:10] }}/{{ j.data_inicio[5:7] }} a {{ j.data_fim[8:10] }}/{{ j.data_fim[5:7] }}</td>
+                            <td>{{ j.dias }}</td>
+                            <td>{{ j.descricao or '-' }}</td>
+                            <td class="text-center">
+                                {% if j.arquivo_atestado %}
+                                <a href="{{ url_for('download_atestado', filename=j.arquivo_atestado) }}"
+                                   target="_blank" class="btn btn-sm btn-outline-info" title="Ver atestado">
+                                    <i class="bi bi-file-earmark-arrow-down"></i>
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if j.status == 'aprovado' %}
+                                <span class="badge bg-success">Aprovado</span>
+                                {% elif j.status == 'rejeitado' %}
+                                <span class="badge bg-danger">Rejeitado</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Pendente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

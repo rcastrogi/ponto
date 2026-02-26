@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Criar Senha{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-5 col-lg-4">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-key-fill text-success" style="font-size: 3rem;"></i>
+                        <h4 class="mt-2 fw-bold text-primary">Bem-vindo(a)!</h4>
+                        <p class="text-muted mb-0">Olá, <strong>{{ nome }}</strong></p>
+                        <p class="text-muted">Este é seu primeiro acesso. Crie uma senha para continuar.</p>
+                    </div>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="nova_senha" class="form-label">Nova Senha</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                <input type="password" class="form-control" id="nova_senha" name="nova_senha"
+                                       minlength="4" placeholder="Mínimo 4 caracteres" required autofocus>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="confirmar_senha" class="form-label">Confirmar Senha</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                                <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha"
+                                       minlength="4" placeholder="Repita a senha" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 btn-lg">
+                            <i class="bi bi-check-circle me-2"></i>Criar Senha e Entrar
+                        </button>
+                    </form>
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('login') }}" class="text-muted small">
+                            <i class="bi bi-arrow-left me-1"></i>Voltar ao login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

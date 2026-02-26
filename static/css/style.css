@@ -1,0 +1,193 @@
+/* ============================================
+   Piticas Ponto - Custom Styles
+   ============================================ */
+
+:root {
+    --primary-color: #4472C4;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+}
+
+body {
+    background-color: #f4f6f9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Navbar */
+.navbar {
+    padding: 0.7rem 1rem;
+}
+
+.navbar-brand {
+    font-size: 1.3rem;
+    letter-spacing: 0.5px;
+}
+
+/* Cards */
+.card {
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08) !important;
+}
+
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+    padding: 1rem 1.25rem;
+}
+
+/* Punch Button */
+.punch-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+}
+
+.punch-btn {
+    font-size: 1.3rem;
+    padding: 15px 40px;
+    border-radius: 50px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.punch-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+}
+
+.punch-btn:active {
+    transform: translateY(0);
+}
+
+/* Clock Display */
+#relogio {
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 3px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Tables */
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #555;
+    padding: 0.75rem;
+}
+
+.table tbody td {
+    vertical-align: middle;
+    padding: 0.65rem 0.75rem;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(68, 114, 196, 0.04);
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+    padding: 0.4em 0.7em;
+    border-radius: 6px;
+}
+
+/* Border colored cards */
+.border-4 {
+    border-width: 4px !important;
+}
+
+/* Summary cards */
+.card .card-body h3,
+.card .card-body h2 {
+    transition: color 0.2s ease;
+}
+
+/* Alerts */
+.alert {
+    border-radius: 10px;
+    border: none;
+}
+
+/* Form controls */
+.form-control, .form-select {
+    border-radius: 8px;
+    padding: 0.6rem 0.9rem;
+}
+
+.form-control:focus, .form-select:focus {
+    box-shadow: 0 0 0 3px rgba(68, 114, 196, 0.15);
+    border-color: var(--primary-color);
+}
+
+/* Footer */
+.footer {
+    font-size: 0.85rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .punch-btn {
+        font-size: 1.1rem;
+        padding: 12px 30px;
+    }
+
+    #relogio {
+        font-size: 2.5rem !important;
+    }
+
+    .table {
+        font-size: 0.85rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Login Page */
+.login-page .card {
+    border-radius: 16px;
+}
+
+/* Status colors inline */
+.text-status-completo { color: var(--success-color); }
+.text-status-andamento { color: var(--warning-color); }
+.text-status-incompleto { color: var(--danger-color); }
+
+/* Print styles */
+@media print {
+    .navbar, .footer, .btn, .no-print {
+        display: none !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+}

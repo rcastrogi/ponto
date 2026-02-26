@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Nova Justificativa{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-file-earmark-medical me-2 text-primary"></i>
+                        Nova Justificativa
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="tipo" class="form-label">Tipo *</label>
+                            <select class="form-select" id="tipo" name="tipo" required>
+                                <option value="">Selecione o tipo...</option>
+                                <option value="atestado">Atestado Médico</option>
+                                <option value="falta_justificada">Falta Justificada</option>
+                                <option value="ferias">Férias</option>
+                                <option value="licenca">Licença</option>
+                            </select>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="data_inicio" class="form-label">Data Início *</label>
+                                <input type="date" class="form-control" id="data_inicio" name="data_inicio" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="data_fim" class="form-label">Data Fim *</label>
+                                <input type="date" class="form-control" id="data_fim" name="data_fim" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="descricao" class="form-label">Descrição / Observações</label>
+                            <textarea class="form-control" id="descricao" name="descricao" rows="3"
+                                      placeholder="Ex: Atestado médico de 3 dias, CID..."></textarea>
+                        </div>
+
+                        <!-- Upload de atestado (aparece quando tipo = atestado) -->
+                        <div class="mb-3" id="campo_atestado" style="display: none;">
+                            <label for="arquivo_atestado" class="form-label">
+                                <i class="bi bi-paperclip me-1"></i>Anexar Atestado
+                            </label>
+                            <input type="file" class="form-control" id="arquivo_atestado" name="arquivo_atestado"
+                                   accept=".pdf,.png,.jpg,.jpeg,.gif,.doc,.docx">
+                            <small class="text-muted">
+                                Formatos aceitos: PDF, imagens (PNG, JPG), Word (DOC, DOCX). Máx: 10 MB
+                            </small>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            {% if session.get('is_gestor') %}
+                            Justificativas registradas pelo gestor são aprovadas automaticamente.
+                            {% else %}
+                            Sua justificativa será enviada para <strong>aprovação do gestor</strong>.
+                            Após aprovada, as horas do(s) dia(s) justificado(s) serão contabilizadas automaticamente.
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('lista_justificativas') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg me-1"></i>Registrar Justificativa
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Mostrar campo de upload quando tipo = atestado
+    const tipoSelect = document.getElementById('tipo');
+    const campoAtestado = document.getElementById('campo_atestado');
+
+    tipoSelect.addEventListener('change', function() {
+        campoAtestado.style.display = this.value === 'atestado' ? 'block' : 'none';
+    });
+
+    // Auto-calculate days
+    document.getElementById('data_fim').addEventListener('change', function() {
+        const inicio = document.getElementById('data_inicio').value;
+        const fim = this.value;
+        if (inicio && fim) {
+            const d1 = new Date(inicio);
+            const d2 = new Date(fim);
+            const dias = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+            if (dias > 0) {
+                // Show info
+            }
+        }
+    });
+</script>
+{% endblock %}

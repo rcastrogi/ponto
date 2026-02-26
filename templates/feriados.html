@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Feriados{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-calendar-event me-2"></i>Feriados</h3>
+    </div>
+
+    <div class="row g-4">
+        <!-- Form para novo feriado -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-plus-circle me-2 text-primary"></i>Adicionar Feriado
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('novo_feriado') }}">
+                        <div class="mb-3">
+                            <label for="data" class="form-label">Data *</label>
+                            <input type="date" class="form-control" id="data" name="data" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="descricao" class="form-label">Descrição</label>
+                            <input type="text" class="form-control" id="descricao" name="descricao"
+                                   placeholder="Ex: Natal, Corpus Christi...">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-lg me-1"></i>Adicionar
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-body">
+                    <div class="alert alert-info mb-0 py-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <small>
+                            <strong>Domingos e feriados</strong> têm carga reduzida (6h por padrão).<br>
+                            Os feriados nacionais de 2026 já foram pré-cadastrados automaticamente.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de feriados -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Dia da Semana</th>
+                                    <th>Descrição</th>
+                                    <th class="text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set dias_semana = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'] %}
+                                {% for f in feriados %}
+                                <tr>
+                                    <td class="fw-bold">
+                                        {{ f.data[8:10] }}/{{ f.data[5:7] }}/{{ f.data[0:4] }}
+                                    </td>
+                                    <td>
+                                        {% set parts = f.data.split('-') %}
+                                        <span class="badge bg-info bg-opacity-10 text-info">
+                                            {{ f.data }}
+                                        </span>
+                                    </td>
+                                    <td>{{ f.descricao or '-' }}</td>
+                                    <td class="text-center">
+                                        <form method="POST" action="{{ url_for('excluir_feriado', fer_id=f.id) }}"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Remover este feriado?')">
+                                            <button class="btn btn-sm btn-outline-danger" title="Remover">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        Nenhum feriado cadastrado.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

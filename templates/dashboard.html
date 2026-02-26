@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-speedometer2 me-2"></i>Dashboard do Gestor</h3>
+        <span class="text-muted">{{ today.strftime('%d/%m/%Y') }}</span>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Total Colaboradores</h6>
+                            <h3 class="mb-0 fw-bold">{{ colaboradores|length }}</h3>
+                        </div>
+                        <i class="bi bi-people text-primary opacity-50" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-success border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Presentes Hoje</h6>
+                            <h3 class="mb-0 fw-bold">{{ registros_hoje|length }}</h3>
+                        </div>
+                        <i class="bi bi-person-check text-success opacity-50" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-danger border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Ausentes Hoje</h6>
+                            <h3 class="mb-0 fw-bold">{{ ausentes|length }}</h3>
+                        </div>
+                        <i class="bi bi-person-x text-danger opacity-50" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Justificativas Pendentes</h6>
+                            <h3 class="mb-0 fw-bold">{{ justificativas_pendentes|length }}</h3>
+                        </div>
+                        <i class="bi bi-exclamation-triangle text-warning opacity-50" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Today's Records -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2 text-primary"></i>Registros de Hoje
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th class="text-center">Entrada</th>
+                                    <th class="text-center">Saída Almoço</th>
+                                    <th class="text-center">Retorno</th>
+                                    <th class="text-center">Saída</th>
+                                    <th class="text-center">Horas</th>
+                                    <th class="text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in registros_hoje %}
+                                <tr>
+                                    <td class="fw-bold">{{ r.colaborador_nome }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success bg-opacity-10 text-success">
+                                            {{ r.entrada or '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-warning bg-opacity-10 text-warning">
+                                            {{ r.saida_almoco or '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info bg-opacity-10 text-info">
+                                            {{ r.retorno_almoco or '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger bg-opacity-10 text-danger">
+                                            {{ r.saida or '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center fw-bold">
+                                        {{ '%.2f'|format(r.horas_trabalhadas) }}h
+                                    </td>
+                                    <td class="text-center">
+                                        <a href="{{ url_for('editar_registro', reg_id=r.id) }}"
+                                           class="btn btn-sm btn-outline-primary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        Nenhum registro hoje.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Sidebar -->
+        <div class="col-lg-4">
+            <!-- Absent today -->
+            {% if ausentes %}
+            <div class="card shadow-sm border-0 mb-4 border-start border-danger border-4">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="card-title mb-0 text-danger">
+                        <i class="bi bi-exclamation-circle me-2"></i>Ausentes Hoje
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for c in ausentes %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ c.nome }}</span>
+                            <span class="badge bg-danger bg-opacity-10 text-danger">{{ c.cargo }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Pending Justifications -->
+            {% if justificativas_pendentes %}
+            <div class="card shadow-sm border-0 mb-4 border-start border-warning border-4">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="card-title mb-0 text-warning">
+                        <i class="bi bi-file-earmark-medical me-2"></i>Justificativas Pendentes
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for j in justificativas_pendentes %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ j.colaborador_nome }}</strong>
+                                <span class="badge bg-warning text-dark">{{ j.tipo }}</span>
+                            </div>
+                            <small class="text-muted">
+                                {{ j.data_inicio[8:10] }}/{{ j.data_inicio[5:7] }} a 
+                                {{ j.data_fim[8:10] }}/{{ j.data_fim[5:7] }} ({{ j.dias }} dia{{ 's' if j.dias > 1 }})
+                            </small>
+                            {% if j.arquivo_atestado %}
+                            <div class="mt-1">
+                                <a href="{{ url_for('download_atestado', filename=j.arquivo_atestado) }}"
+                                   target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-paperclip me-1"></i>Ver Atestado
+                                </a>
+                            </div>
+                            {% endif %}
+                            <div class="mt-2">
+                                <form method="POST" action="{{ url_for('aprovar_justificativa', just_id=j.id) }}"
+                                      class="d-inline">
+                                    <input type="hidden" name="acao" value="aprovar">
+                                    <button class="btn btn-sm btn-success me-1">
+                                        <i class="bi bi-check"></i> Aprovar
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('aprovar_justificativa', just_id=j.id) }}"
+                                      class="d-inline">
+                                    <input type="hidden" name="acao" value="rejeitar">
+                                    <button class="btn btn-sm btn-danger">
+                                        <i class="bi bi-x"></i> Rejeitar
+                                    </button>
+                                </form>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Weekly Summary -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-calendar-week me-2 text-success"></i>
+                Resumo Semanal ({{ inicio_sem.strftime('%d/%m') }} a {{ fim_sem.strftime('%d/%m') }})
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Colaborador</th>
+                            <th>Cargo</th>
+                            <th class="text-center">Dias Trabalhados</th>
+                            <th class="text-center">Horas na Semana</th>
+                            <th class="text-center">Máx Semana</th>
+                            <th class="text-center">H. Extras</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in resumo_semanal %}
+                        {% set extras_sem = [0, (r.horas_semana or 0) - (r.max_horas_semana or 40)]|max %}
+                        <tr>
+                            <td class="fw-bold">{{ r.nome }}</td>
+                            <td>{{ r.cargo or '-' }}</td>
+                            <td class="text-center">{{ r.dias_semana or 0 }}</td>
+                            <td class="text-center">
+                                <span class="fw-bold {% if (r.horas_semana or 0) > (r.max_horas_semana or 40) %}text-danger{% elif (r.horas_semana or 0) >= ((r.max_horas_semana or 40) * 0.8) %}text-success{% endif %}">
+                                    {{ '%.2f'|format(r.horas_semana or 0) }}h
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <small class="text-muted">{{ r.max_horas_semana or 40 }}h</small>
+                            </td>
+                            <td class="text-center">
+                                {% if extras_sem > 0 %}
+                                <span class="badge bg-danger">+{{ '%.2f'|format(extras_sem) }}h</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('relatorio_colaborador', colab_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-info" title="Ver Relatório">
+                                    <i class="bi bi-bar-chart"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Summary -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-calendar-month me-2 text-info"></i>
+                Resumo Mensal ({{ inicio_mes.strftime('%d/%m') }} a {{ fim_mes.strftime('%d/%m') }})
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Colaborador</th>
+                            <th>Cargo</th>
+                            <th class="text-center">Dias Trabalhados</th>
+                            <th class="text-center">Horas no Mês</th>
+                            <th class="text-center">H. Justificadas</th>
+                            <th class="text-center">H. Extras Mês</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in resumo_mensal %}
+                        <tr>
+                            <td class="fw-bold">{{ r.nome }}</td>
+                            <td>{{ r.cargo or '-' }}</td>
+                            <td class="text-center">{{ r.dias_mes or 0 }}</td>
+                            <td class="text-center">
+                                <span class="fw-bold">{{ '%.2f'|format((r.horas_mes or 0) + horas_justificadas_mensal.get(r.id, 0)) }}h</span>
+                            </td>
+                            <td class="text-center">
+                                {% if horas_justificadas_mensal.get(r.id, 0) > 0 %}
+                                <span class="badge bg-info">{{ '%.2f'|format(horas_justificadas_mensal[r.id]) }}h</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if horas_extras_mensal.get(r.id, 0) > 0 %}
+                                <span class="badge bg-danger">+{{ '%.2f'|format(horas_extras_mensal[r.id]) }}h</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('relatorio_colaborador', colab_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-info" title="Ver Relatório">
+                                    <i class="bi bi-bar-chart"></i>
+                                </a>
+                                <a href="{{ url_for('exportar_excel', colab_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-success" title="Exportar Excel">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

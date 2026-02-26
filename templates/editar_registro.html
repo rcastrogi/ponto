@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Editar Registro{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-pencil me-2 text-primary"></i>
+                        Editar Registro - {{ registro.colaborador_nome }}
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-calendar me-2"></i>
+                        Data: <strong>{{ registro.data[8:10] }}/{{ registro.data[5:7] }}/{{ registro.data[0:4] }}</strong>
+                    </div>
+
+                    <form method="POST">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="entrada" class="form-label">
+                                    <i class="bi bi-box-arrow-in-right text-success me-1"></i>Entrada
+                                </label>
+                                <input type="time" class="form-control" id="entrada" name="entrada"
+                                       value="{{ registro.entrada or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="saida_almoco" class="form-label">
+                                    <i class="bi bi-cup-hot text-warning me-1"></i>Saída Almoço
+                                </label>
+                                <input type="time" class="form-control" id="saida_almoco" name="saida_almoco"
+                                       value="{{ registro.saida_almoco or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="retorno_almoco" class="form-label">
+                                    <i class="bi bi-arrow-return-left text-info me-1"></i>Retorno Almoço
+                                </label>
+                                <input type="time" class="form-control" id="retorno_almoco" name="retorno_almoco"
+                                       value="{{ registro.retorno_almoco or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="saida" class="form-label">
+                                    <i class="bi bi-box-arrow-right text-danger me-1"></i>Saída
+                                </label>
+                                <input type="time" class="form-control" id="saida" name="saida"
+                                       value="{{ registro.saida or '' }}">
+                            </div>
+                            <div class="col-12">
+                                <label for="observacao" class="form-label">Observação</label>
+                                <textarea class="form-control" id="observacao" name="observacao"
+                                          rows="2">{{ registro.observacao or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('relatorio_colaborador', colab_id=registro.colaborador_id) }}"
+                               class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

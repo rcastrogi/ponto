@@ -2,6 +2,7 @@ import os
 import io
 from datetime import datetime, date, timedelta
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -24,6 +25,17 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Timezone Brasil
+BR_TZ = ZoneInfo('America/Sao_Paulo')
+
+def agora():
+    """Retorna datetime atual no fuso de São Paulo."""
+    return datetime.now(BR_TZ)
+
+def hoje():
+    """Retorna date atual no fuso de São Paulo."""
+    return datetime.now(BR_TZ).date()
 
 
 def allowed_file(filename):
@@ -92,8 +104,8 @@ def calcular_horas(entrada, saida_almoco, retorno_almoco, saida):
         if entrada and not saida:
             fmt = '%H:%M'
             h_entrada = datetime.strptime(entrada, fmt)
-            agora = datetime.now()
-            h_agora = datetime.strptime(agora.strftime('%H:%M'), fmt)
+            agora_dt = agora()
+            h_agora = datetime.strptime(agora_dt.strftime('%H:%M'), fmt)
 
             total_minutos = (h_agora - h_entrada).total_seconds() / 60
 
@@ -193,8 +205,8 @@ def calcular_horas_justificadas(colab_id, data_inicio, data_fim, colaborador, db
 def inject_globals():
     """Inject global variables into templates."""
     return {
-        'now': datetime.now(),
-        'today': date.today(),
+        'now': agora(),
+        'today': hoje(),
     }
 
 
@@ -309,7 +321,8 @@ def logout():
 @login_required
 def meu_ponto():
     db = get_db()
-    hoje = date.today().isoformat()
+    hoje_dt = hoje()
+    hoje_iso = hoje_dt.isoformat()
     user_id = session['user_id']
 
     # Dados do colaborador
@@ -320,11 +333,11 @@ def meu_ponto():
     # Registro de hoje
     registro_hoje = db.execute(
         'SELECT * FROM registros_ponto WHERE colaborador_id = ? AND data = ?',
-        (user_id, hoje)
+        (user_id, hoje_iso)
     ).fetchone()
 
     # Registros da semana
-    inicio_sem, fim_sem = get_semana_inicio_fim(date.today())
+    inicio_sem, fim_sem = get_semana_inicio_fim(hoje_dt)
     registros_semana = db.execute(
         '''SELECT * FROM registros_ponto
            WHERE colaborador_id = ? AND data BETWEEN ? AND ?
@@ -333,7 +346,7 @@ def meu_ponto():
     ).fetchall()
 
     # Registros do mês
-    inicio_mes, fim_mes = get_mes_inicio_fim(date.today())
+    inicio_mes, fim_mes = get_mes_inicio_fim(hoje_dt)
     registros_mes = db.execute(
         '''SELECT * FROM registros_ponto
            WHERE colaborador_id = ? AND data BETWEEN ? AND ?
@@ -371,7 +384,7 @@ def meu_ponto():
         semanas_no_mes[chave] += r['horas_trabalhadas']
     # Adicionar horas justificadas por semana
     d = inicio_mes
-    while d <= min(fim_mes, date.today()):
+    while d <= min(fim_mes, hoje_dt):
         sem_inicio, sem_fim = get_semana_inicio_fim(d)
         chave = sem_inicio.isoformat()
         if chave not in semanas_no_mes:
@@ -387,8 +400,8 @@ def meu_ponto():
         horas_extras_mes += calcular_horas_extras_semana(h, max_horas)
 
     # Tipo do dia (normal ou especial)
-    tipo_dia_hoje = tipo_dia(date.today(), db)
-    feriado_hoje = is_feriado(date.today(), db)
+    tipo_dia_hoje = tipo_dia(hoje_dt, db)
+    feriado_hoje = is_feriado(hoje_dt, db)
 
     # Determinar próximo tipo de batida
     proximo_tipo = _determinar_proximo_tipo(registro_hoje)
@@ -449,14 +462,14 @@ LABELS_TIPO = {
 def registrar_ponto():
     db = get_db()
     user_id = session['user_id']
-    hoje = date.today().isoformat()
-    agora = datetime.now().strftime('%H:%M')
-    td = tipo_dia(date.today(), db)
+    hoje_iso = hoje().isoformat()
+    agora_str = agora().strftime('%H:%M')
+    td = tipo_dia(hoje(), db)
 
     # Busca registro de hoje
     registro = db.execute(
         'SELECT * FROM registros_ponto WHERE colaborador_id = ? AND data = ?',
-        (user_id, hoje)
+        (user_id, hoje_iso)
     ).fetchone()
 
     proximo_tipo = _determinar_proximo_tipo(registro)
@@ -471,14 +484,14 @@ def registrar_ponto():
         db.execute(
             '''INSERT INTO registros_ponto (colaborador_id, data, entrada, tipo_dia, status)
                VALUES (?, ?, ?, ?, 'em_andamento')''',
-            (user_id, hoje, agora, td)
+            (user_id, hoje_iso, agora_str, td)
         )
-        flash(f'Entrada registrada às {agora}!', 'success')
+        flash(f'Entrada registrada às {agora_str}!', 'success')
     else:
         # Atualizar registro existente
         db.execute(
             f'UPDATE registros_ponto SET {proximo_tipo} = ? WHERE id = ?',
-            (agora, registro['id'])
+            (agora_str, registro['id'])
         )
 
         # Se é a saída final, calcular horas e marcar como completo
@@ -490,7 +503,7 @@ def registrar_ponto():
                 reg_atualizado['entrada'],
                 reg_atualizado['saida_almoco'],
                 reg_atualizado['retorno_almoco'],
-                agora
+                agora_str
             )
             db.execute(
                 '''UPDATE registros_ponto
@@ -505,8 +518,8 @@ def registrar_ponto():
             ).fetchone()
             horas = calcular_horas(
                 reg_atualizado['entrada'],
-                reg_atualizado['saida_almoco'] if proximo_tipo != 'saida_almoco' else agora,
-                reg_atualizado['retorno_almoco'] if proximo_tipo != 'retorno_almoco' else agora,
+                reg_atualizado['saida_almoco'] if proximo_tipo != 'saida_almoco' else agora_str,
+                reg_atualizado['retorno_almoco'] if proximo_tipo != 'retorno_almoco' else agora_str,
                 reg_atualizado['saida']
             )
             db.execute(
@@ -514,7 +527,7 @@ def registrar_ponto():
                 (horas, registro['id'])
             )
 
-        flash(f'{LABELS_TIPO[proximo_tipo]} registrada às {agora}!', 'success')
+        flash(f'{LABELS_TIPO[proximo_tipo]} registrada às {agora_str}!', 'success')
 
     db.commit()
     db.close()
@@ -529,9 +542,9 @@ def registrar_ponto():
 @gestor_required
 def dashboard():
     db = get_db()
-    hoje = date.today().isoformat()
-    inicio_sem, fim_sem = get_semana_inicio_fim(date.today())
-    inicio_mes, fim_mes = get_mes_inicio_fim(date.today())
+    hoje_iso = hoje().isoformat()
+    inicio_sem, fim_sem = get_semana_inicio_fim(hoje())
+    inicio_mes, fim_mes = get_mes_inicio_fim(hoje())
 
     # Todos os colaboradores ativos
     colaboradores = db.execute(
@@ -545,7 +558,7 @@ def dashboard():
            JOIN colaboradores c ON r.colaborador_id = c.id
            WHERE r.data = ? AND c.ativo = 1
            ORDER BY c.nome''',
-        (hoje,)
+        (hoje_iso,)
     ).fetchall()
 
     # IDs que registraram hoje
@@ -626,7 +639,7 @@ def dashboard():
                 '''SELECT id FROM justificativas
                    WHERE colaborador_id = ? AND ? BETWEEN data_inicio AND data_fim
                    AND status = 'aprovado' ''',
-                (c['id'], hoje)
+                (c['id'], hoje_iso)
             ).fetchone()
             if not just:
                 ausentes.append(c)
@@ -662,12 +675,12 @@ def relatorio_colaborador(colab_id):
         return redirect(url_for('dashboard'))
 
     # Período: parâmetro ou mês atual
-    mes = request.args.get('mes', date.today().strftime('%Y-%m'))
+    mes = request.args.get('mes', hoje().strftime('%Y-%m'))
     try:
         ano, m = mes.split('-')
         data_ref = date(int(ano), int(m), 1)
     except (ValueError, TypeError):
-        data_ref = date.today().replace(day=1)
+        data_ref = hoje().replace(day=1)
 
     inicio_mes, fim_mes = get_mes_inicio_fim(data_ref)
 
@@ -728,7 +741,7 @@ def relatorio_colaborador(colab_id):
     horas_esperadas = 0.0
     d = inicio_mes
     dias_uteis = 0
-    while d <= min(fim_mes, date.today()):
+    while d <= min(fim_mes, hoje()):
         # Conta todos os dias como possíveis dias de trabalho (horário flexível)
         # mas desconta as folgas semanais (2 por semana estimado)
         horas_esperadas += carga_esperada_dia(d, colaborador, db)
@@ -952,7 +965,7 @@ def nova_justificativa():
         arquivo = request.files.get('arquivo_atestado')
         if arquivo and arquivo.filename and allowed_file(arquivo.filename):
             ext = arquivo.filename.rsplit('.', 1)[1].lower()
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = agora().strftime('%Y%m%d_%H%M%S')
             arquivo_nome = f"atestado_{colab_id}_{timestamp}.{ext}"
             arquivo.save(os.path.join(app.config['UPLOAD_FOLDER'], arquivo_nome))
 
@@ -969,7 +982,7 @@ def nova_justificativa():
             # Se gestor, auto-aprovar
             status = 'aprovado' if session.get('is_gestor') else 'pendente'
             aprovado_por = session['user_id'] if session.get('is_gestor') else None
-            data_aprovacao = datetime.now().isoformat() if session.get('is_gestor') else None
+            data_aprovacao = agora().isoformat() if session.get('is_gestor') else None
 
             db.execute(
                 '''INSERT INTO justificativas
@@ -1018,7 +1031,7 @@ def aprovar_justificativa(just_id):
         '''UPDATE justificativas
            SET status = ?, aprovado_por = ?, data_aprovacao = ?
            WHERE id = ?''',
-        (status, session['user_id'], datetime.now().isoformat(), just_id)
+        (status, session['user_id'], agora().isoformat(), just_id)
     )
     db.commit()
     db.close()
@@ -1140,12 +1153,12 @@ def exportar_excel(colab_id):
         'SELECT * FROM colaboradores WHERE id = ?', (colab_id,)
     ).fetchone()
 
-    mes = request.args.get('mes', date.today().strftime('%Y-%m'))
+    mes = request.args.get('mes', hoje().strftime('%Y-%m'))
     try:
         ano, m = mes.split('-')
         data_ref = date(int(ano), int(m), 1)
     except (ValueError, TypeError):
-        data_ref = date.today().replace(day=1)
+        data_ref = hoje().replace(day=1)
 
     inicio_mes, fim_mes = get_mes_inicio_fim(data_ref)
 
@@ -1290,7 +1303,7 @@ def alterar_senha():
 
 @app.route('/api/hora-atual')
 def hora_atual():
-    return jsonify({'hora': datetime.now().strftime('%H:%M:%S')})
+    return jsonify({'hora': agora().strftime('%H:%M:%S')})
 
 
 # ---------------------------------------------------------------------------

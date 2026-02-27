@@ -13,11 +13,12 @@ from werkzeug.utils import secure_filename
 from models import get_db, init_db
 
 app = Flask(__name__)
-app.secret_key = 'piticas-ponto-secret-key-2026'
+app.secret_key = os.environ.get('SECRET_KEY', 'piticas-ponto-secret-key-2026')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=10)
 
 # Upload config
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'atestados')
+DATA_DIR = os.environ.get('DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_FOLDER = os.path.join(DATA_DIR, 'uploads', 'atestados')
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
@@ -1299,3 +1300,6 @@ def hora_atual():
 if __name__ == '__main__':
     init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
+else:
+    # Production (gunicorn) - init DB on import
+    init_db()

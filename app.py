@@ -403,6 +403,17 @@ def meu_ponto():
     tipo_dia_hoje = tipo_dia(hoje_dt, db)
     feriado_hoje = is_feriado(hoje_dt, db)
 
+    # Duração mínima do almoço
+    min_almoco = 30 if tipo_dia_hoje == 'especial' else 60
+
+    # Calcular horário mínimo de retorno do almoço (se estiver em almoço)
+    retorno_minimo = None
+    if registro_hoje and registro_hoje['saida_almoco'] and not registro_hoje['retorno_almoco']:
+        fmt = '%H:%M'
+        h_saida_almoco = datetime.strptime(registro_hoje['saida_almoco'], fmt)
+        h_retorno_min = h_saida_almoco + timedelta(minutes=min_almoco)
+        retorno_minimo = h_retorno_min.strftime('%H:%M')
+
     # Determinar próximo tipo de batida
     proximo_tipo = _determinar_proximo_tipo(registro_hoje)
 
@@ -429,6 +440,8 @@ def meu_ponto():
                            horas_extras_mes=round(horas_extras_mes, 2),
                            tipo_dia_hoje=tipo_dia_hoje,
                            feriado_hoje=feriado_hoje,
+                           min_almoco=min_almoco,
+                           retorno_minimo=retorno_minimo,
                            proximo_tipo=proximo_tipo,
                            justificativas=justificativas)
 
@@ -478,6 +491,20 @@ def registrar_ponto():
         flash('Todas as batidas do dia já foram registradas.', 'info')
         db.close()
         return redirect(url_for('meu_ponto'))
+
+    # Validar duração mínima do almoço ao retornar
+    if proximo_tipo == 'retorno_almoco' and registro and registro['saida_almoco']:
+        fmt = '%H:%M'
+        h_saida_almoco = datetime.strptime(registro['saida_almoco'], fmt)
+        h_retorno = datetime.strptime(agora_str, fmt)
+        almoco_minutos = (h_retorno - h_saida_almoco).total_seconds() / 60
+        min_almoco = 30 if td == 'especial' else 60
+        if almoco_minutos < min_almoco:
+            restante = int(min_almoco - almoco_minutos)
+            flash(f'Intervalo de almoço mínimo: {min_almoco} minutos. '
+                  f'Faltam {restante} min. Aguarde para registrar o retorno.', 'warning')
+            db.close()
+            return redirect(url_for('meu_ponto'))
 
     if not registro:
         # Criar registro do dia

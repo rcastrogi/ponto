@@ -21,17 +21,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ------------------------------------------
-    // Punch confirmation
+    // Punch confirmation handled by modal in meu_ponto.html
     // ------------------------------------------
-    const btnPonto = document.getElementById('btnPonto');
-    if (btnPonto) {
-        btnPonto.closest('form').addEventListener('submit', function (e) {
-            const tipo = btnPonto.textContent.trim();
-            if (!confirm(`Confirmar registro de "${tipo}"?`)) {
-                e.preventDefault();
-            }
-        });
-    }
 
     // ------------------------------------------
     // Auto-dismiss alerts after 5 seconds

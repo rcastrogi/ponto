@@ -77,9 +77,9 @@
                                     <td>{{ f.descricao or '-' }}</td>
                                     <td class="text-center">
                                         <form method="POST" action="{{ url_for('excluir_feriado', fer_id=f.id) }}"
-                                              class="d-inline"
-                                              onsubmit="return confirm('Remover este feriado?')">
-                                            <button class="btn btn-sm btn-outline-danger" title="Remover">
+                                              class="d-inline form-excluir">
+                                            <button type="button" class="btn btn-sm btn-outline-danger btn-excluir" title="Remover"
+                                                    data-descricao="{{ f.descricao or f.data }}">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
@@ -100,4 +100,39 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Confirmar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Remover o feriado <strong id="deleteDesc"></strong>?
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm" id="deleteConfirmBtn">Remover</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let formAlvo = null;
+    document.querySelectorAll('.btn-excluir').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            formAlvo = btn.closest('form');
+            document.getElementById('deleteDesc').textContent = btn.getAttribute('data-descricao');
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        });
+    });
+    document.getElementById('deleteConfirmBtn').addEventListener('click', function() {
+        if (formAlvo) formAlvo.submit();
+    });
+});
+</script>
 {% endblock %}

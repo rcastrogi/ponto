@@ -16,14 +16,22 @@
                     </h5>
                     <div id="relogio" class="display-2 fw-bold text-primary my-3">--:--:--</div>
                     
+                    {% if proximo_tipo == 'retorno_almoco' and retorno_minimo %}
+                    <div class="alert alert-info py-2 px-3 mb-3 d-inline-block" id="almocoInfo">
+                        <i class="bi bi-cup-hot me-1"></i>
+                        Almoço mín. <strong>{{ min_almoco }}min</strong> &mdash; retorno liberado às <strong>{{ retorno_minimo }}</strong>
+                    </div>
+                    {% endif %}
+
                     {% if proximo_tipo != 'completo' %}
-                    <form method="POST" action="{{ url_for('registrar_ponto') }}">
-                        <button type="submit" class="btn btn-lg punch-btn 
+                    <form method="POST" action="{{ url_for('registrar_ponto') }}" id="formPonto">
+                        <button type="button" class="btn btn-lg punch-btn 
                             {% if proximo_tipo == 'entrada' %}btn-success
                             {% elif proximo_tipo == 'saida_almoco' %}btn-warning
                             {% elif proximo_tipo == 'retorno_almoco' %}btn-info
                             {% elif proximo_tipo == 'saida' %}btn-danger
-                            {% endif %}" id="btnPonto">
+                            {% endif %}" id="btnPonto"
+                            data-tipo="{% if proximo_tipo == 'entrada' %}Entrada{% elif proximo_tipo == 'saida_almoco' %}Saída Almoço{% elif proximo_tipo == 'retorno_almoco' %}Retorno Almoço{% elif proximo_tipo == 'saida' %}Saída{% endif %}">
                             <i class="bi bi-hand-index-thumb me-2"></i>
                             Registrar 
                             {% if proximo_tipo == 'entrada' %}Entrada
@@ -296,4 +304,58 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Modal de Confirmação de Ponto -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="confirmModalLabel">
+                    <i class="bi bi-hand-index-thumb me-2 text-primary"></i>Confirmar Registro
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="bi bi-clock" style="font-size: 3rem; color: var(--bs-primary);"></i>
+                </div>
+                <p class="fs-5 mb-1">Registrar <strong id="confirmTipo"></strong>?</p>
+                <p class="text-muted mb-0" id="confirmHora"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-primary px-4" id="confirmBtn">
+                    <i class="bi bi-check-lg me-1"></i>Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btnPonto = document.getElementById('btnPonto');
+    const formPonto = document.getElementById('formPonto');
+    if (btnPonto && formPonto) {
+        btnPonto.addEventListener('click', function() {
+            const tipo = btnPonto.getAttribute('data-tipo');
+            document.getElementById('confirmTipo').textContent = tipo;
+            const agora = new Date();
+            const hora = String(agora.getHours()).padStart(2, '0') + ':' +
+                         String(agora.getMinutes()).padStart(2, '0') + ':' +
+                         String(agora.getSeconds()).padStart(2, '0');
+            document.getElementById('confirmHora').textContent = hora;
+            const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+            modal.show();
+        });
+        document.getElementById('confirmBtn').addEventListener('click', function() {
+            formPonto.submit();
+        });
+    }
+});
+</script>
 {% endblock %}

@@ -69,6 +69,52 @@
         </div>
     </div>
 
+    <!-- Charts Row -->
+    <div class="row mb-4 g-3">
+        <!-- Evolução Diária (30 dias) -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-graph-up me-2 text-primary"></i>Evolução de Horas (últimos 30 dias)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartEvolucao" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- Ranking do Mês -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-trophy me-2 text-warning"></i>Ranking do Mês (Top 10)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartRanking" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparativo Mensal -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-bar-chart-line me-2 text-success"></i>Comparativo Mensal (últimos 6 meses)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartMensal" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4">
         <!-- Today's Records -->
         <div class="col-lg-8">
@@ -347,4 +393,180 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fontFamily = "'Segoe UI', system-ui, -apple-system, sans-serif";
+    Chart.defaults.font.family = fontFamily;
+    Chart.defaults.font.size = 12;
+
+    // 1. Evolução Diária (Line chart com duas escalas)
+    const ctxEvolucao = document.getElementById('chartEvolucao').getContext('2d');
+    new Chart(ctxEvolucao, {
+        type: 'line',
+        data: {
+            labels: {{ chart_evolucao_labels | tojson }},
+            datasets: [
+                {
+                    label: 'Horas Trabalhadas',
+                    data: {{ chart_evolucao_horas | tojson }},
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Presenças',
+                    data: {{ chart_evolucao_presencas | tojson }},
+                    borderColor: '#198754',
+                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    borderDash: [5, 5],
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, padding: 15 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            if (ctx.datasetIndex === 0) return ctx.dataset.label + ': ' + ctx.raw + 'h';
+                            return ctx.dataset.label + ': ' + ctx.raw;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    position: 'left',
+                    title: { display: true, text: 'Horas' },
+                    beginAtZero: true
+                },
+                y1: {
+                    position: 'right',
+                    title: { display: true, text: 'Presenças' },
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+
+    // 2. Comparativo Mensal (Bar chart)
+    const ctxMensal = document.getElementById('chartMensal').getContext('2d');
+    new Chart(ctxMensal, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_mensal_labels | tojson }},
+            datasets: [
+                {
+                    label: 'Horas Trabalhadas',
+                    data: {{ chart_mensal_horas | tojson }},
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: '#0d6efd',
+                    borderWidth: 1,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Horas Extras',
+                    data: {{ chart_mensal_extras | tojson }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                    borderColor: '#dc3545',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, padding: 15 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) { return ctx.dataset.label + ': ' + ctx.raw + 'h'; }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Horas' }
+                }
+            }
+        }
+    });
+
+    // 3. Ranking do Mês (Horizontal bar)
+    const ctxRanking = document.getElementById('chartRanking').getContext('2d');
+    const rankingCores = {{ chart_ranking_horas | tojson }}.map(function(_, i) {
+        const cores = [
+            'rgba(255, 193, 7, 0.8)',   // ouro
+            'rgba(108, 117, 125, 0.7)',  // prata
+            'rgba(205, 127, 50, 0.7)',   // bronze
+            'rgba(13, 110, 253, 0.6)',
+            'rgba(13, 110, 253, 0.5)',
+            'rgba(13, 110, 253, 0.4)',
+            'rgba(13, 110, 253, 0.35)',
+            'rgba(13, 110, 253, 0.3)',
+            'rgba(13, 110, 253, 0.25)',
+            'rgba(13, 110, 253, 0.2)'
+        ];
+        return cores[i] || cores[cores.length - 1];
+    });
+    const rankingBordas = rankingCores.map(function(c) {
+        return c.replace(/[\d.]+\)$/, '1)');
+    });
+    new Chart(ctxRanking, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_ranking_nomes | tojson }},
+            datasets: [{
+                label: 'Horas no Mês',
+                data: {{ chart_ranking_horas | tojson }},
+                backgroundColor: rankingCores,
+                borderColor: rankingBordas,
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) { return ctx.raw + 'h'; }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Horas' }
+                },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+});
+</script>
 {% endblock %}

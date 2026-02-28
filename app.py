@@ -672,6 +672,79 @@ def dashboard():
             if not just:
                 ausentes.append(c)
 
+    # -----------------------------------------------------------------------
+    # Dados para gráficos (Chart.js)
+    # -----------------------------------------------------------------------
+
+    # 1. Evolução diária de horas (últimos 30 dias)
+    trinta_dias_atras = (hoje() - timedelta(days=29)).isoformat()
+    evolucao_diaria = db.execute(
+        '''SELECT data, SUM(horas_trabalhadas) as total_horas, COUNT(id) as total_registros
+           FROM registros_ponto
+           WHERE data BETWEEN ? AND ?
+           GROUP BY data
+           ORDER BY data''',
+        (trinta_dias_atras, hoje_iso)
+    ).fetchall()
+    chart_evolucao_labels = [r['data'][5:] for r in evolucao_diaria]  # MM-DD
+    chart_evolucao_horas = [round(r['total_horas'], 2) for r in evolucao_diaria]
+    chart_evolucao_presencas = [r['total_registros'] for r in evolucao_diaria]
+
+    # 2. Comparativo mensal (últimos 6 meses)
+    chart_mensal_labels = []
+    chart_mensal_horas = []
+    chart_mensal_extras = []
+    meses_nomes = ['Jan','Fev','Mar','Abr','Mai','Jun',
+                   'Jul','Ago','Set','Out','Nov','Dez']
+    for i in range(5, -1, -1):
+        d_ref = hoje().replace(day=1)
+        # Subtrair meses
+        for _ in range(i):
+            d_ref = (d_ref - timedelta(days=1)).replace(day=1)
+        m_inicio, m_fim = get_mes_inicio_fim(d_ref)
+        label = f"{meses_nomes[d_ref.month - 1]}/{str(d_ref.year)[2:]}"
+        chart_mensal_labels.append(label)
+
+        totais_mes = db.execute(
+            '''SELECT COALESCE(SUM(horas_trabalhadas), 0) as total
+               FROM registros_ponto
+               WHERE data BETWEEN ? AND ?''',
+            (m_inicio.isoformat(), m_fim.isoformat())
+        ).fetchone()
+        chart_mensal_horas.append(round(totais_mes['total'], 2))
+
+        # Horas extras do mês (simplificado: total - esperado proporcional)
+        extras_total = 0.0
+        for c in colaboradores:
+            regs = db.execute(
+                '''SELECT data, horas_trabalhadas FROM registros_ponto
+                   WHERE colaborador_id = ? AND data BETWEEN ? AND ?''',
+                (c['id'], m_inicio.isoformat(), m_fim.isoformat())
+            ).fetchall()
+            max_h = c['max_horas_semana'] or 40.0
+            semanas_c = {}
+            for r in regs:
+                d_r = date.fromisoformat(r['data'])
+                sem_i, _ = get_semana_inicio_fim(d_r)
+                ch = sem_i.isoformat()
+                semanas_c[ch] = semanas_c.get(ch, 0) + r['horas_trabalhadas']
+            extras_total += sum(calcular_horas_extras_semana(h, max_h) for h in semanas_c.values())
+        chart_mensal_extras.append(round(extras_total, 2))
+
+    # 3. Ranking de horas no mês (top 10)
+    ranking = db.execute(
+        '''SELECT c.nome, SUM(r.horas_trabalhadas) as total_horas
+           FROM registros_ponto r
+           JOIN colaboradores c ON r.colaborador_id = c.id
+           WHERE r.data BETWEEN ? AND ? AND c.ativo = 1
+           GROUP BY c.id
+           ORDER BY total_horas DESC
+           LIMIT 10''',
+        (inicio_mes.isoformat(), fim_mes.isoformat())
+    ).fetchall()
+    chart_ranking_nomes = [r['nome'].split()[0] for r in ranking]  # Primeiro nome
+    chart_ranking_horas = [round(r['total_horas'], 2) for r in ranking]
+
     db.close()
 
     return render_template('dashboard.html',
@@ -686,7 +759,15 @@ def dashboard():
                            inicio_sem=inicio_sem,
                            fim_sem=fim_sem,
                            inicio_mes=inicio_mes,
-                           fim_mes=fim_mes)
+                           fim_mes=fim_mes,
+                           chart_evolucao_labels=chart_evolucao_labels,
+                           chart_evolucao_horas=chart_evolucao_horas,
+                           chart_evolucao_presencas=chart_evolucao_presencas,
+                           chart_mensal_labels=chart_mensal_labels,
+                           chart_mensal_horas=chart_mensal_horas,
+                           chart_mensal_extras=chart_mensal_extras,
+                           chart_ranking_nomes=chart_ranking_nomes,
+                           chart_ranking_horas=chart_ranking_horas)
 
 
 @app.route('/relatorio-colaborador/<int:colab_id>')

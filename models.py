@@ -19,6 +19,16 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
+    # Tabela de lojas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lojas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            endereco TEXT DEFAULT '',
+            ativo INTEGER DEFAULT 1
+        )
+    ''')
+
     # Tabela de colaboradores (horário flexível)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS colaboradores (
@@ -28,6 +38,7 @@ def init_db():
             senha TEXT DEFAULT '',
             cargo TEXT DEFAULT '',
             departamento TEXT DEFAULT '',
+            loja_id INTEGER,
             primeiro_acesso INTEGER DEFAULT 1,
             max_horas_semana REAL DEFAULT 40.0,
             horas_dia_normal REAL DEFAULT 8.0,
@@ -35,7 +46,8 @@ def init_db():
             folgas_semana INTEGER DEFAULT 2,
             is_gestor INTEGER DEFAULT 0,
             ativo INTEGER DEFAULT 1,
-            data_cadastro TEXT DEFAULT (datetime('now', 'localtime'))
+            data_cadastro TEXT DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (loja_id) REFERENCES lojas(id)
         )
     ''')
 
@@ -94,6 +106,34 @@ def init_db():
             valor TEXT NOT NULL
         )
     ''')
+
+    # Tabela de banco de horas (acumulado mensal)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS banco_horas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            colaborador_id INTEGER NOT NULL,
+            mes TEXT NOT NULL,
+            horas_trabalhadas REAL DEFAULT 0,
+            horas_justificadas REAL DEFAULT 0,
+            horas_esperadas REAL DEFAULT 0,
+            saldo REAL DEFAULT 0,
+            fechado INTEGER DEFAULT 0,
+            FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id),
+            UNIQUE(colaborador_id, mes)
+        )
+    ''')
+
+    # Migração: adicionar loja_id em colaboradores se não existir
+    try:
+        cursor.execute("SELECT loja_id FROM colaboradores LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE colaboradores ADD COLUMN loja_id INTEGER REFERENCES lojas(id)")
+
+    # Inserir loja padrão se não existir nenhuma
+    cursor.execute("SELECT id FROM lojas LIMIT 1")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO lojas (nome, endereco) VALUES (?, ?)",
+                       ('Loja Principal', 'Endereço da loja'))
 
     # Inserir configurações padrão
     configs_padrao = [

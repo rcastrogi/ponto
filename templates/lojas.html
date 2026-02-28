@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Lojas{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-shop me-2"></i>Lojas</h3>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#novaLojaModal">
+            <i class="bi bi-plus-lg me-1"></i>Nova Loja
+        </button>
+    </div>
+
+    <div class="row g-4">
+        {% for l in lojas %}
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title mb-1">
+                                <i class="bi bi-shop me-1 text-primary"></i>{{ l.nome }}
+                            </h5>
+                            <p class="text-muted small mb-2">{{ l.endereco or 'Sem endereço' }}</p>
+                        </div>
+                        {% if l.ativo %}
+                        <span class="badge bg-success">Ativa</span>
+                        {% else %}
+                        <span class="badge bg-danger">Inativa</span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex align-items-center mt-2">
+                        <i class="bi bi-people me-2 text-primary"></i>
+                        <span class="fw-bold">{{ l.total_colaboradores }}</span>
+                        <span class="text-muted ms-1">colaborador(es)</span>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top-0 d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                            data-bs-toggle="modal" data-bs-target="#editModal{{ l.id }}">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </button>
+                    {% if l.total_colaboradores == 0 %}
+                    <form method="POST" action="{{ url_for('excluir_loja', loja_id=l.id) }}" class="d-inline">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-loja"
+                                data-nome="{{ l.nome }}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div class="modal fade" id="editModal{{ l.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form method="POST" action="{{ url_for('editar_loja', loja_id=l.id) }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Editar Loja</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Nome *</label>
+                                <input type="text" class="form-control" name="nome" value="{{ l.nome }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Endereço</label>
+                                <input type="text" class="form-control" name="endereco" value="{{ l.endereco }}">
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="ativo"
+                                       id="ativo{{ l.id }}" {{ 'checked' if l.ativo }}>
+                                <label class="form-check-label" for="ativo{{ l.id }}">Ativa</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle me-2"></i>Nenhuma loja cadastrada.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- New Store Modal -->
+<div class="modal fade" id="novaLojaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('nova_loja') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-shop me-2 text-primary"></i>Nova Loja</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome *</label>
+                        <input type="text" class="form-control" name="nome" required placeholder="Ex: Piticas Shopping Centro">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Endereço</label>
+                        <input type="text" class="form-control" name="endereco" placeholder="Ex: Rua das Flores, 123">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Cadastrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Delete confirmation modal -->
+<div class="modal fade" id="deleteLojaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Confirmar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">Remover a loja <strong id="deleteLojaDesc"></strong>?</div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm" id="deleteLojaConfirmBtn">Remover</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let formAlvo = null;
+    document.querySelectorAll('.btn-excluir-loja').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            formAlvo = btn.closest('form');
+            document.getElementById('deleteLojaDesc').textContent = btn.getAttribute('data-nome');
+            new bootstrap.Modal(document.getElementById('deleteLojaModal')).show();
+        });
+    });
+    document.getElementById('deleteLojaConfirmBtn')?.addEventListener('click', function() {
+        if (formAlvo) formAlvo.submit();
+    });
+});
+</script>
+{% endblock %}

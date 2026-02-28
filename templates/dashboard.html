@@ -318,8 +318,10 @@
                                 <a href="{{ url_for('relatorio_colaborador', colab_id=r.id) }}"
                                    class="btn btn-sm btn-outline-info" title="Ver Relatório">
                                     <i class="bi bi-bar-chart"></i>
-                                </a>
-                                <a href="{{ url_for('exportar_excel', colab_id=r.id) }}"
+                                </a>                                <a href=\"{{ url_for('exportar_pdf', colab_id=r.id) }}\"
+                                   class=\"btn btn-sm btn-outline-danger\" title=\"Exportar PDF\">
+                                    <i class=\"bi bi-file-earmark-pdf\"></i>
+                                </a>                                <a href="{{ url_for('exportar_excel', colab_id=r.id) }}"
                                    class="btn btn-sm btn-outline-success" title="Exportar Excel">
                                     <i class="bi bi-file-earmark-excel"></i>
                                 </a>

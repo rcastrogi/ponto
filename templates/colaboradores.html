@@ -19,21 +19,27 @@
                             <th>Nome</th>
                             <th>E-mail</th>
                             <th>Cargo</th>
-                            <th>Departamento</th>
-                            <th class="text-center">Máx h/sem</th>
-                            <th class="text-center">Folgas/sem</th>
-                            <th class="text-center">Perfil</th>
-                            <th class="text-center">Status</th>
-                            <th class="text-center">Ações</th>
+                            <th>Loja</th>
+                            <th class=\"text-center\">Máx h/sem</th>
+                            <th class=\"text-center\">Folgas/sem</th>
+                            <th class=\"text-center\">Perfil</th>
+                            <th class=\"text-center\">Status</th>
+                            <th class=\"text-center\">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for c in colaboradores %}
                         <tr>
-                            <td class="fw-bold">{{ c.nome }}</td>
+                            <td class=\"fw-bold\">{{ c.nome }}</td>
                             <td>{{ c.email }}</td>
                             <td>{{ c.cargo or '-' }}</td>
-                            <td>{{ c.departamento or '-' }}</td>
+                            <td>
+                                {% if c.loja_nome %}
+                                <span class=\"badge bg-primary bg-opacity-10 text-primary\">
+                                    <i class=\"bi bi-shop me-1\"></i>{{ c.loja_nome }}
+                                </span>
+                                {% else %}-{% endif %}
+                            </td>
                             <td class="text-center">
                                 <span class="badge bg-primary bg-opacity-10 text-primary">{{ c.max_horas_semana or 40 }}h</span>
                             </td>

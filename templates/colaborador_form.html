@@ -42,8 +42,18 @@
                                 <label for="departamento" class="form-label">Departamento</label>
                                 <input type="text" class="form-control" id="departamento" name="departamento"
                                        value="{{ colaborador.departamento if colaborador else '' }}">
-                            </div>
-                            <div class="col-md-6">
+                            </div>                            <div class=\"col-md-6\">
+                                <label for=\"loja_id\" class=\"form-label\">Loja</label>
+                                <select class=\"form-select\" id=\"loja_id\" name=\"loja_id\">
+                                    <option value=\"\">-- Sem loja --</option>
+                                    {% for l in lojas %}
+                                    <option value=\"{{ l.id }}\"
+                                        {{ 'selected' if colaborador and colaborador.loja_id == l.id else '' }}>
+                                        {{ l.nome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>                            <div class="col-md-6">
                                 <label for="max_horas_semana" class="form-label">Máx. Horas/Semana</label>
                                 <input type="number" class="form-control" id="max_horas_semana"
                                        name="max_horas_semana" step="0.5" min="1" max="60"

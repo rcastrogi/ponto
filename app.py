@@ -1,5 +1,6 @@
 import os
 import io
+import calendar
 from datetime import datetime, date, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
@@ -816,7 +817,10 @@ def relatorio_colaborador(colab_id):
 def lista_colaboradores():
     db = get_db()
     colaboradores = db.execute(
-        'SELECT * FROM colaboradores ORDER BY nome'
+        '''SELECT c.*, l.nome as loja_nome
+           FROM colaboradores c
+           LEFT JOIN lojas l ON c.loja_id = l.id
+           ORDER BY c.nome'''
     ).fetchall()
     db.close()
     return render_template('colaboradores.html', colaboradores=colaboradores)
@@ -830,6 +834,7 @@ def novo_colaborador():
         email = request.form.get('email', '').strip().lower()
         cargo = request.form.get('cargo', '').strip()
         departamento = request.form.get('departamento', '').strip()
+        loja_id = request.form.get('loja_id', '') or None
         max_horas_semana = float(request.form.get('max_horas_semana', 40))
         horas_dia_normal = float(request.form.get('horas_dia_normal', 8))
         horas_dia_especial = float(request.form.get('horas_dia_especial', 6))
@@ -838,17 +843,20 @@ def novo_colaborador():
 
         if not nome or not email:
             flash('Nome e e-mail são obrigatórios.', 'danger')
-            return render_template('colaborador_form.html', colaborador=None)
+            db = get_db()
+            lojas = db.execute('SELECT * FROM lojas WHERE ativo = 1 ORDER BY nome').fetchall()
+            db.close()
+            return render_template('colaborador_form.html', colaborador=None, lojas=lojas)
 
         db = get_db()
         try:
             db.execute(
                 '''INSERT INTO colaboradores
-                   (nome, email, senha, cargo, departamento,
+                   (nome, email, senha, cargo, departamento, loja_id,
                     max_horas_semana, horas_dia_normal, horas_dia_especial,
                     folgas_semana, is_gestor, primeiro_acesso)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (nome, email, '', cargo, departamento,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (nome, email, '', cargo, departamento, loja_id,
                  max_horas_semana, horas_dia_normal, horas_dia_especial,
                  folgas_semana, is_gestor, 1)
             )
@@ -861,7 +869,10 @@ def novo_colaborador():
 
         return redirect(url_for('lista_colaboradores'))
 
-    return render_template('colaborador_form.html', colaborador=None)
+    db = get_db()
+    lojas = db.execute('SELECT * FROM lojas WHERE ativo = 1 ORDER BY nome').fetchall()
+    db.close()
+    return render_template('colaborador_form.html', colaborador=None, lojas=lojas)
 
 
 @app.route('/colaboradores/<int:colab_id>/editar', methods=['GET', 'POST'])
@@ -882,6 +893,7 @@ def editar_colaborador(colab_id):
         email = request.form.get('email', '').strip().lower()
         cargo = request.form.get('cargo', '').strip()
         departamento = request.form.get('departamento', '').strip()
+        loja_id = request.form.get('loja_id', '') or None
         max_horas_semana = float(request.form.get('max_horas_semana', 40))
         horas_dia_normal = float(request.form.get('horas_dia_normal', 8))
         horas_dia_especial = float(request.form.get('horas_dia_especial', 6))
@@ -895,33 +907,33 @@ def editar_colaborador(colab_id):
             if nova_senha:
                 db.execute(
                     '''UPDATE colaboradores
-                       SET nome=?, email=?, senha=?, cargo=?, departamento=?,
+                       SET nome=?, email=?, senha=?, cargo=?, departamento=?, loja_id=?,
                            max_horas_semana=?, horas_dia_normal=?, horas_dia_especial=?,
                            folgas_semana=?, is_gestor=?, ativo=?
                        WHERE id=?''',
-                    (nome, email, generate_password_hash(nova_senha), cargo, departamento,
+                    (nome, email, generate_password_hash(nova_senha), cargo, departamento, loja_id,
                      max_horas_semana, horas_dia_normal, horas_dia_especial,
                      folgas_semana, is_gestor, ativo, colab_id)
                 )
             elif resetar_acesso:
                 db.execute(
                     '''UPDATE colaboradores
-                       SET nome=?, email=?, senha=?, cargo=?, departamento=?,
+                       SET nome=?, email=?, senha=?, cargo=?, departamento=?, loja_id=?,
                            max_horas_semana=?, horas_dia_normal=?, horas_dia_especial=?,
                            folgas_semana=?, is_gestor=?, ativo=?, primeiro_acesso=1
                        WHERE id=?''',
-                    (nome, email, '', cargo, departamento,
+                    (nome, email, '', cargo, departamento, loja_id,
                      max_horas_semana, horas_dia_normal, horas_dia_especial,
                      folgas_semana, is_gestor, ativo, colab_id)
                 )
             else:
                 db.execute(
                     '''UPDATE colaboradores
-                       SET nome=?, email=?, cargo=?, departamento=?,
+                       SET nome=?, email=?, cargo=?, departamento=?, loja_id=?,
                            max_horas_semana=?, horas_dia_normal=?, horas_dia_especial=?,
                            folgas_semana=?, is_gestor=?, ativo=?
                        WHERE id=?''',
-                    (nome, email, cargo, departamento,
+                    (nome, email, cargo, departamento, loja_id,
                      max_horas_semana, horas_dia_normal, horas_dia_especial,
                      folgas_semana, is_gestor, ativo, colab_id)
                 )
@@ -934,8 +946,9 @@ def editar_colaborador(colab_id):
 
         return redirect(url_for('lista_colaboradores'))
 
+    lojas = db.execute('SELECT * FROM lojas WHERE ativo = 1 ORDER BY nome').fetchall()
     db.close()
-    return render_template('colaborador_form.html', colaborador=colaborador)
+    return render_template('colaborador_form.html', colaborador=colaborador, lojas=lojas)
 
 
 # ---------------------------------------------------------------------------
@@ -1331,6 +1344,349 @@ def alterar_senha():
 @app.route('/api/hora-atual')
 def hora_atual():
     return jsonify({'hora': agora().strftime('%H:%M:%S')})
+
+
+# ---------------------------------------------------------------------------
+# PDF Export
+# ---------------------------------------------------------------------------
+
+@app.route('/exportar-pdf/<int:colab_id>')
+@gestor_required
+def exportar_pdf(colab_id):
+    from xhtml2pdf import pisa
+
+    db = get_db()
+    colaborador = db.execute(
+        'SELECT * FROM colaboradores WHERE id = ?', (colab_id,)
+    ).fetchone()
+
+    mes = request.args.get('mes', hoje().strftime('%Y-%m'))
+    try:
+        ano, m = mes.split('-')
+        data_ref = date(int(ano), int(m), 1)
+    except (ValueError, TypeError):
+        data_ref = hoje().replace(day=1)
+
+    inicio_mes, fim_mes = get_mes_inicio_fim(data_ref)
+
+    registros = db.execute(
+        '''SELECT * FROM registros_ponto
+           WHERE colaborador_id = ? AND data BETWEEN ? AND ?
+           ORDER BY data''',
+        (colab_id, inicio_mes.isoformat(), fim_mes.isoformat())
+    ).fetchall()
+
+    horas_just, dias_just = calcular_horas_justificadas(
+        colab_id, inicio_mes, fim_mes, colaborador, db)
+
+    total_horas_trab = sum(r['horas_trabalhadas'] for r in registros)
+    total_geral = total_horas_trab + horas_just
+
+    # Loja do colaborador
+    loja = None
+    if colaborador['loja_id']:
+        loja = db.execute('SELECT nome FROM lojas WHERE id = ?',
+                          (colaborador['loja_id'],)).fetchone()
+
+    db.close()
+
+    meses_pt = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    nome_mes = f"{meses_pt[data_ref.month]}/{data_ref.year}"
+
+    # Build HTML
+    rows_html = ''
+    for r in registros:
+        d = date.fromisoformat(r['data'])
+        dias_sem = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+        td_label = 'Fer/Dom' if (r['tipo_dia'] or 'normal') == 'especial' else 'Normal'
+        rows_html += f'''<tr>
+            <td>{d.strftime("%d/%m/%Y")} ({dias_sem[d.weekday()]})</td>
+            <td style="text-align:center">{td_label}</td>
+            <td style="text-align:center">{r['entrada'] or '-'}</td>
+            <td style="text-align:center">{r['saida_almoco'] or '-'}</td>
+            <td style="text-align:center">{r['retorno_almoco'] or '-'}</td>
+            <td style="text-align:center">{r['saida'] or '-'}</td>
+            <td style="text-align:center"><b>{r['horas_trabalhadas']:.2f}h</b></td>
+        </tr>'''
+
+    loja_info = f"<b>Loja:</b> {loja['nome']}" if loja else ""
+
+    html = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+    @page {{ size: A4; margin: 1.5cm; }}
+    body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #333; }}
+    h1 {{ color: #4472C4; font-size: 18px; margin-bottom: 2px; }}
+    h2 {{ color: #666; font-size: 13px; font-weight: normal; margin-top: 0; }}
+    .info {{ margin-bottom: 10px; font-size: 10px; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+    th {{ background-color: #4472C4; color: white; padding: 6px 4px; font-size: 9px;
+          text-align: center; }}
+    td {{ padding: 5px 4px; border-bottom: 1px solid #ddd; font-size: 9px; }}
+    tr:nth-child(even) {{ background-color: #f8f9fa; }}
+    .totals {{ margin-top: 15px; }}
+    .totals td {{ border: none; padding: 3px 4px; font-size: 10px; }}
+    .signature {{ margin-top: 50px; }}
+    .signature td {{ border: none; text-align: center; padding-top: 40px;
+                     border-top: 1px solid #333; font-size: 10px; }}
+    .footer {{ text-align: center; font-size: 8px; color: #999; margin-top: 30px; }}
+</style></head><body>
+    <h1>Piticas - Folha de Ponto</h1>
+    <h2>{nome_mes}</h2>
+    <div class="info">
+        <b>Colaborador:</b> {colaborador['nome']} &nbsp;|&nbsp;
+        <b>Cargo:</b> {colaborador['cargo'] or '-'} &nbsp;|&nbsp;
+        <b>E-mail:</b> {colaborador['email']}
+        {(' &nbsp;|&nbsp; ' + loja_info) if loja_info else ''}
+    </div>
+    <table>
+        <thead><tr>
+            <th style="text-align:left">Data</th><th>Tipo</th><th>Entrada</th>
+            <th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Horas</th>
+        </tr></thead>
+        <tbody>{rows_html}</tbody>
+    </table>
+    <table class="totals">
+        <tr><td style="text-align:right;width:70%"><b>Total Trabalhado:</b></td>
+            <td><b>{total_horas_trab:.2f}h</b></td></tr>
+        <tr><td style="text-align:right"><b>Horas Justificadas:</b></td>
+            <td><b style="color:#0070C0">{horas_just:.2f}h</b> ({dias_just} dia(s))</td></tr>
+        <tr><td style="text-align:right"><b>Total Geral:</b></td>
+            <td><b style="color:#28a745">{total_geral:.2f}h</b></td></tr>
+    </table>
+    <table class="signature"><tr>
+        <td style="width:45%">{colaborador['nome']}<br><small>Colaborador</small></td>
+        <td style="width:10%"></td>
+        <td style="width:45%">Gestor Responsável<br><small>Assinatura</small></td>
+    </tr></table>
+    <div class="footer">
+        Documento gerado em {agora().strftime("%d/%m/%Y %H:%M")} - Piticas Controle de Ponto
+    </div>
+</body></html>'''
+
+    result = io.BytesIO()
+    pisa.CreatePDF(io.StringIO(html), dest=result)
+    result.seek(0)
+
+    nome_arquivo = f"ponto_{colaborador['nome'].replace(' ', '_')}_{mes}.pdf"
+    return send_file(result, as_attachment=True, download_name=nome_arquivo,
+                     mimetype='application/pdf')
+
+
+# ---------------------------------------------------------------------------
+# Lojas CRUD (Gestor)
+# ---------------------------------------------------------------------------
+
+@app.route('/lojas')
+@gestor_required
+def lista_lojas():
+    db = get_db()
+    lojas = db.execute(
+        '''SELECT l.*, COUNT(c.id) as total_colaboradores
+           FROM lojas l
+           LEFT JOIN colaboradores c ON c.loja_id = l.id AND c.ativo = 1
+           GROUP BY l.id
+           ORDER BY l.nome'''
+    ).fetchall()
+    db.close()
+    return render_template('lojas.html', lojas=lojas)
+
+
+@app.route('/lojas/nova', methods=['POST'])
+@gestor_required
+def nova_loja():
+    nome = request.form.get('nome', '').strip()
+    endereco = request.form.get('endereco', '').strip()
+    if not nome:
+        flash('Nome da loja é obrigatório.', 'danger')
+        return redirect(url_for('lista_lojas'))
+    db = get_db()
+    try:
+        db.execute('INSERT INTO lojas (nome, endereco) VALUES (?, ?)', (nome, endereco))
+        db.commit()
+        flash(f'Loja "{nome}" cadastrada!', 'success')
+    except Exception as e:
+        flash(f'Erro: {e}', 'danger')
+    finally:
+        db.close()
+    return redirect(url_for('lista_lojas'))
+
+
+@app.route('/lojas/<int:loja_id>/editar', methods=['POST'])
+@gestor_required
+def editar_loja(loja_id):
+    nome = request.form.get('nome', '').strip()
+    endereco = request.form.get('endereco', '').strip()
+    ativo = 1 if request.form.get('ativo') else 0
+    db = get_db()
+    db.execute('UPDATE lojas SET nome=?, endereco=?, ativo=? WHERE id=?',
+               (nome, endereco, ativo, loja_id))
+    db.commit()
+    db.close()
+    flash('Loja atualizada!', 'success')
+    return redirect(url_for('lista_lojas'))
+
+
+@app.route('/lojas/<int:loja_id>/excluir', methods=['POST'])
+@gestor_required
+def excluir_loja(loja_id):
+    db = get_db()
+    # Desassociar colaboradores
+    db.execute('UPDATE colaboradores SET loja_id = NULL WHERE loja_id = ?', (loja_id,))
+    db.execute('DELETE FROM lojas WHERE id = ?', (loja_id,))
+    db.commit()
+    db.close()
+    flash('Loja removida!', 'success')
+    return redirect(url_for('lista_lojas'))
+
+
+# ---------------------------------------------------------------------------
+# Banco de Horas
+# ---------------------------------------------------------------------------
+
+def _calcular_horas_esperadas_mes(colab, inicio_mes, fim_mes, db):
+    """Calcula horas esperadas no mês considerando dias e folgas."""
+    horas_esperadas = 0.0
+    d = inicio_mes
+    dias_uteis = 0
+    limite = min(fim_mes, hoje())
+    while d <= limite:
+        horas_esperadas += carga_esperada_dia(d, colab, db)
+        dias_uteis += 1
+        d += timedelta(days=1)
+    folgas = colab['folgas_semana'] or 2
+    semanas_periodo = max(1, dias_uteis / 7)
+    folgas_total = round(folgas * semanas_periodo)
+    media_carga = horas_esperadas / dias_uteis if dias_uteis > 0 else 8.0
+    horas_esperadas -= folgas_total * media_carga
+    return max(0, round(horas_esperadas, 2))
+
+
+@app.route('/banco-horas')
+@gestor_required
+def banco_horas():
+    db = get_db()
+    colaboradores = db.execute(
+        'SELECT * FROM colaboradores WHERE ativo = 1 ORDER BY nome'
+    ).fetchall()
+
+    lojas = db.execute('SELECT * FROM lojas WHERE ativo = 1 ORDER BY nome').fetchall()
+    loja_filter = request.args.get('loja', '')
+
+    # Calcular saldo acumulado para cada colaborador
+    resumo = []
+    for c in colaboradores:
+        if loja_filter and str(c['loja_id'] or '') != loja_filter:
+            continue
+
+        # Buscar saldos fechados anteriores
+        saldo_anterior = db.execute(
+            '''SELECT COALESCE(SUM(saldo), 0) as total FROM banco_horas
+               WHERE colaborador_id = ? AND fechado = 1''',
+            (c['id'],)
+        ).fetchone()['total']
+
+        # Calcular mês atual
+        inicio_mes, fim_mes = get_mes_inicio_fim(hoje())
+        regs_mes = db.execute(
+            '''SELECT horas_trabalhadas FROM registros_ponto
+               WHERE colaborador_id = ? AND data BETWEEN ? AND ?''',
+            (c['id'], inicio_mes.isoformat(), fim_mes.isoformat())
+        ).fetchall()
+        horas_trab_mes = sum(r['horas_trabalhadas'] for r in regs_mes)
+        horas_just_mes, _ = calcular_horas_justificadas(
+            c['id'], inicio_mes, fim_mes, c, db)
+        horas_esperadas_mes = _calcular_horas_esperadas_mes(c, inicio_mes, fim_mes, db)
+        saldo_mes = round(horas_trab_mes + horas_just_mes - horas_esperadas_mes, 2)
+        saldo_total = round(saldo_anterior + saldo_mes, 2)
+
+        # Loja
+        loja_nome = ''
+        if c['loja_id']:
+            loja = db.execute('SELECT nome FROM lojas WHERE id = ?', (c['loja_id'],)).fetchone()
+            loja_nome = loja['nome'] if loja else ''
+
+        resumo.append({
+            'id': c['id'],
+            'nome': c['nome'],
+            'cargo': c['cargo'],
+            'loja': loja_nome,
+            'horas_trab_mes': round(horas_trab_mes, 2),
+            'horas_just_mes': round(horas_just_mes, 2),
+            'horas_esperadas_mes': horas_esperadas_mes,
+            'saldo_mes': saldo_mes,
+            'saldo_anterior': round(saldo_anterior, 2),
+            'saldo_total': saldo_total,
+        })
+
+    db.close()
+
+    mes_atual = hoje().strftime('%Y-%m')
+    return render_template('banco_horas.html', resumo=resumo, lojas=lojas,
+                           loja_filter=loja_filter, mes_atual=mes_atual)
+
+
+@app.route('/banco-horas/fechar-mes', methods=['POST'])
+@gestor_required
+def fechar_mes_banco():
+    """Fecha o mês e persiste o saldo no banco de horas."""
+    mes = request.form.get('mes', '')
+    if not mes:
+        flash('Mês não informado.', 'danger')
+        return redirect(url_for('banco_horas'))
+
+    try:
+        ano, m = mes.split('-')
+        data_ref = date(int(ano), int(m), 1)
+    except (ValueError, TypeError):
+        flash('Mês inválido.', 'danger')
+        return redirect(url_for('banco_horas'))
+
+    inicio_mes, fim_mes = get_mes_inicio_fim(data_ref)
+
+    db = get_db()
+    colaboradores = db.execute(
+        'SELECT * FROM colaboradores WHERE ativo = 1'
+    ).fetchall()
+
+    count = 0
+    for c in colaboradores:
+        # Verificar se já fechou
+        existente = db.execute(
+            'SELECT id FROM banco_horas WHERE colaborador_id = ? AND mes = ?',
+            (c['id'], mes)
+        ).fetchone()
+        if existente:
+            continue
+
+        regs = db.execute(
+            '''SELECT horas_trabalhadas FROM registros_ponto
+               WHERE colaborador_id = ? AND data BETWEEN ? AND ?''',
+            (c['id'], inicio_mes.isoformat(), fim_mes.isoformat())
+        ).fetchall()
+        horas_trab = sum(r['horas_trabalhadas'] for r in regs)
+        horas_just, _ = calcular_horas_justificadas(c['id'], inicio_mes, fim_mes, c, db)
+        horas_esperadas = _calcular_horas_esperadas_mes(c, inicio_mes, fim_mes, db)
+        saldo = round(horas_trab + horas_just - horas_esperadas, 2)
+
+        db.execute(
+            '''INSERT INTO banco_horas
+               (colaborador_id, mes, horas_trabalhadas, horas_justificadas,
+                horas_esperadas, saldo, fechado)
+               VALUES (?, ?, ?, ?, ?, ?, 1)''',
+            (c['id'], mes, round(horas_trab, 2), round(horas_just, 2),
+             horas_esperadas, saldo)
+        )
+        count += 1
+
+    db.commit()
+    db.close()
+
+    meses_pt = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    flash(f'Mês {meses_pt[data_ref.month]}/{data_ref.year} fechado para {count} colaborador(es)!', 'success')
+    return redirect(url_for('banco_horas'))
 
 
 # ---------------------------------------------------------------------------

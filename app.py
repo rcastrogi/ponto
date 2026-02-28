@@ -1082,8 +1082,33 @@ def aprovar_justificativa(just_id):
 
 
 # ---------------------------------------------------------------------------
-# Manual Edit (Gestor)
+# Edição de Ponto pelo Gestor (com auditoria)
 # ---------------------------------------------------------------------------
+
+def _registrar_historico(db, registro_id, colaborador_id, editado_por, acao,
+                         campos_alterados=None, motivo=''):
+    """Registra uma entrada no histórico de edições."""
+    data_edicao = agora().isoformat()
+    if campos_alterados:
+        for campo, (anterior, novo) in campos_alterados.items():
+            db.execute(
+                '''INSERT INTO historico_edicoes
+                   (registro_id, colaborador_id, editado_por, data_edicao,
+                    acao, campo, valor_anterior, valor_novo, motivo)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (registro_id, colaborador_id, editado_por, data_edicao,
+                 acao, campo, str(anterior or ''), str(novo or ''), motivo)
+            )
+    else:
+        db.execute(
+            '''INSERT INTO historico_edicoes
+               (registro_id, colaborador_id, editado_por, data_edicao,
+                acao, campo, valor_anterior, valor_novo, motivo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (registro_id, colaborador_id, editado_por, data_edicao,
+             acao, None, '', '', motivo)
+        )
+
 
 @app.route('/registro/<int:reg_id>/editar', methods=['GET', 'POST'])
 @gestor_required
@@ -1102,12 +1127,48 @@ def editar_registro(reg_id):
         db.close()
         return redirect(url_for('dashboard'))
 
+    # Carregar histórico de edições do registro
+    historico = db.execute(
+        '''SELECT h.*, c.nome as editor_nome
+           FROM historico_edicoes h
+           JOIN colaboradores c ON h.editado_por = c.id
+           WHERE h.registro_id = ?
+           ORDER BY h.data_edicao DESC''',
+        (reg_id,)
+    ).fetchall()
+
     if request.method == 'POST':
         entrada = request.form.get('entrada', '').strip() or None
         saida_almoco = request.form.get('saida_almoco', '').strip() or None
         retorno_almoco = request.form.get('retorno_almoco', '').strip() or None
         saida = request.form.get('saida', '').strip() or None
         observacao = request.form.get('observacao', '').strip()
+        motivo = request.form.get('motivo', '').strip()
+
+        if not motivo:
+            flash('Informe o motivo da edição.', 'warning')
+            db.close()
+            return render_template('editar_registro.html',
+                                   registro=registro, historico=historico)
+
+        # Detectar campos alterados
+        campos_alterados = {}
+        if (entrada or '') != (registro['entrada'] or ''):
+            campos_alterados['entrada'] = (registro['entrada'], entrada)
+        if (saida_almoco or '') != (registro['saida_almoco'] or ''):
+            campos_alterados['saida_almoco'] = (registro['saida_almoco'], saida_almoco)
+        if (retorno_almoco or '') != (registro['retorno_almoco'] or ''):
+            campos_alterados['retorno_almoco'] = (registro['retorno_almoco'], retorno_almoco)
+        if (saida or '') != (registro['saida'] or ''):
+            campos_alterados['saida'] = (registro['saida'], saida)
+        if (observacao or '') != (registro['observacao'] or ''):
+            campos_alterados['observacao'] = (registro['observacao'], observacao)
+
+        if not campos_alterados:
+            flash('Nenhum campo foi alterado.', 'info')
+            db.close()
+            return redirect(url_for('relatorio_colaborador',
+                                    colab_id=registro['colaborador_id']))
 
         horas = calcular_horas(entrada, saida_almoco, retorno_almoco, saida)
         status = 'completo' if entrada and saida else 'em_andamento'
@@ -1115,18 +1176,174 @@ def editar_registro(reg_id):
         db.execute(
             '''UPDATE registros_ponto
                SET entrada=?, saida_almoco=?, retorno_almoco=?, saida=?,
-                   horas_trabalhadas=?, status=?, observacao=?
+                   horas_trabalhadas=?, status=?, observacao=?,
+                   editado_por=?, editado_em=?, motivo_edicao=?
                WHERE id=?''',
             (entrada, saida_almoco, retorno_almoco, saida,
-             horas, status, observacao, reg_id)
+             horas, status, observacao,
+             session['user_id'], agora().isoformat(), motivo,
+             reg_id)
         )
+
+        _registrar_historico(db, reg_id, registro['colaborador_id'],
+                             session['user_id'], 'edicao',
+                             campos_alterados, motivo)
         db.commit()
-        flash('Registro atualizado!', 'success')
+        flash('Registro atualizado com sucesso!', 'success')
         db.close()
-        return redirect(url_for('relatorio_colaborador', colab_id=registro['colaborador_id']))
+        return redirect(url_for('relatorio_colaborador',
+                                colab_id=registro['colaborador_id']))
 
     db.close()
-    return render_template('editar_registro.html', registro=registro)
+    return render_template('editar_registro.html',
+                           registro=registro, historico=historico)
+
+
+@app.route('/registro/novo', methods=['GET', 'POST'])
+@gestor_required
+def criar_registro():
+    """Gestor pode criar registro de ponto para qualquer colaborador/data."""
+    db = get_db()
+    colaboradores = db.execute(
+        'SELECT id, nome FROM colaboradores WHERE ativo = 1 ORDER BY nome'
+    ).fetchall()
+
+    if request.method == 'POST':
+        colab_id = request.form.get('colaborador_id', type=int)
+        data_reg = request.form.get('data', '').strip()
+        entrada = request.form.get('entrada', '').strip() or None
+        saida_almoco = request.form.get('saida_almoco', '').strip() or None
+        retorno_almoco = request.form.get('retorno_almoco', '').strip() or None
+        saida = request.form.get('saida', '').strip() or None
+        observacao = request.form.get('observacao', '').strip()
+        motivo = request.form.get('motivo', '').strip()
+
+        if not colab_id or not data_reg:
+            flash('Colaborador e data são obrigatórios.', 'warning')
+            db.close()
+            return render_template('editar_registro.html',
+                                   registro=None, colaboradores=colaboradores,
+                                   modo='novo')
+
+        if not motivo:
+            flash('Informe o motivo da criação do registro.', 'warning')
+            db.close()
+            return render_template('editar_registro.html',
+                                   registro=None, colaboradores=colaboradores,
+                                   modo='novo')
+
+        # Verificar se já existe registro nessa data
+        existente = db.execute(
+            'SELECT id FROM registros_ponto WHERE colaborador_id = ? AND data = ?',
+            (colab_id, data_reg)
+        ).fetchone()
+        if existente:
+            flash('Já existe registro nessa data para este colaborador. Edite o existente.', 'warning')
+            db.close()
+            return redirect(url_for('editar_registro', reg_id=existente['id']))
+
+        horas = calcular_horas(entrada, saida_almoco, retorno_almoco, saida)
+        status = 'completo' if entrada and saida else 'em_andamento'
+
+        # Determinar tipo do dia
+        from datetime import date as dt_date
+        d = dt_date.fromisoformat(data_reg)
+        feriado = db.execute('SELECT id FROM feriados WHERE data = ?',
+                             (data_reg,)).fetchone()
+        tipo_dia = 'feriado' if feriado else ('normal' if d.weekday() < 5 else 'fim_de_semana')
+
+        cursor = db.execute(
+            '''INSERT INTO registros_ponto
+               (colaborador_id, data, entrada, saida_almoco, retorno_almoco,
+                saida, horas_trabalhadas, tipo_dia, status, observacao,
+                editado_por, editado_em, motivo_edicao)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (colab_id, data_reg, entrada, saida_almoco, retorno_almoco,
+             saida, horas, tipo_dia, status, observacao,
+             session['user_id'], agora().isoformat(), motivo)
+        )
+        reg_id = cursor.lastrowid
+
+        _registrar_historico(db, reg_id, colab_id,
+                             session['user_id'], 'criacao', motivo=motivo)
+        db.commit()
+        flash('Registro criado com sucesso!', 'success')
+        db.close()
+        return redirect(url_for('relatorio_colaborador', colab_id=colab_id))
+
+    db.close()
+    return render_template('editar_registro.html',
+                           registro=None, colaboradores=colaboradores,
+                           modo='novo')
+
+
+@app.route('/registro/<int:reg_id>/excluir', methods=['POST'])
+@gestor_required
+def excluir_registro(reg_id):
+    """Gestor pode excluir um registro de ponto."""
+    db = get_db()
+    registro = db.execute(
+        'SELECT * FROM registros_ponto WHERE id = ?', (reg_id,)
+    ).fetchone()
+
+    if not registro:
+        flash('Registro não encontrado.', 'danger')
+        db.close()
+        return redirect(url_for('dashboard'))
+
+    motivo = request.form.get('motivo', '').strip()
+    if not motivo:
+        flash('Informe o motivo da exclusão.', 'warning')
+        db.close()
+        return redirect(url_for('editar_registro', reg_id=reg_id))
+
+    # Registrar exclusão no histórico antes de deletar
+    _registrar_historico(db, reg_id, registro['colaborador_id'],
+                         session['user_id'], 'exclusao',
+                         campos_alterados={
+                             'entrada': (registro['entrada'], None),
+                             'saida': (registro['saida'], None),
+                         },
+                         motivo=motivo)
+
+    colab_id = registro['colaborador_id']
+    db.execute('DELETE FROM registros_ponto WHERE id = ?', (reg_id,))
+    db.commit()
+    flash('Registro excluído com sucesso!', 'success')
+    db.close()
+    return redirect(url_for('relatorio_colaborador', colab_id=colab_id))
+
+
+@app.route('/registro/<int:reg_id>/historico')
+@gestor_required
+def historico_registro(reg_id):
+    """Visualiza o histórico completo de edições de um registro."""
+    db = get_db()
+    registro = db.execute(
+        '''SELECT r.*, c.nome as colaborador_nome
+           FROM registros_ponto r
+           JOIN colaboradores c ON r.colaborador_id = c.id
+           WHERE r.id = ?''',
+        (reg_id,)
+    ).fetchone()
+
+    if not registro:
+        flash('Registro não encontrado.', 'danger')
+        db.close()
+        return redirect(url_for('dashboard'))
+
+    historico = db.execute(
+        '''SELECT h.*, c.nome as editor_nome
+           FROM historico_edicoes h
+           JOIN colaboradores c ON h.editado_por = c.id
+           WHERE h.registro_id = ?
+           ORDER BY h.data_edicao DESC''',
+        (reg_id,)
+    ).fetchall()
+    db.close()
+    return render_template('editar_registro.html',
+                           registro=registro, historico=historico,
+                           modo='historico')
 
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,12 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3><i class="bi bi-speedometer2 me-2"></i>Dashboard do Gestor</h3>
-        <span class="text-muted">{{ today.strftime('%d/%m/%Y') }}</span>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('criar_registro') }}" class="btn btn-success btn-sm">
+                <i class="bi bi-plus-circle me-1"></i>Novo Registro
+            </a>
+            <span class="text-muted">{{ today.strftime('%d/%m/%Y') }}</span>
+        </div>
     </div>
 
     <!-- Summary Cards -->
@@ -90,7 +95,13 @@
                             <tbody>
                                 {% for r in registros_hoje %}
                                 <tr>
-                                    <td class="fw-bold">{{ r.colaborador_nome }}</td>
+                                    <td class="fw-bold">
+                                        {{ r.colaborador_nome }}
+                                        {% if r.editado_por %}
+                                        <i class="bi bi-pencil-fill text-warning ms-1" style="font-size: 0.7rem;"
+                                           title="Editado por gestor"></i>
+                                        {% endif %}
+                                    </td>
                                     <td class="text-center">
                                         <span class="badge bg-success bg-opacity-10 text-success">
                                             {{ r.entrada or '-' }}
@@ -318,10 +329,12 @@
                                 <a href="{{ url_for('relatorio_colaborador', colab_id=r.id) }}"
                                    class="btn btn-sm btn-outline-info" title="Ver Relatório">
                                     <i class="bi bi-bar-chart"></i>
-                                </a>                                <a href=\"{{ url_for('exportar_pdf', colab_id=r.id) }}\"
-                                   class=\"btn btn-sm btn-outline-danger\" title=\"Exportar PDF\">
-                                    <i class=\"bi bi-file-earmark-pdf\"></i>
-                                </a>                                <a href="{{ url_for('exportar_excel', colab_id=r.id) }}"
+                                </a>
+                                <a href="{{ url_for('exportar_pdf', colab_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-danger" title="Exportar PDF">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>
+                                <a href="{{ url_for('exportar_excel', colab_id=r.id) }}"
                                    class="btn btn-sm btn-outline-success" title="Exportar Excel">
                                     <i class="bi bi-file-earmark-excel"></i>
                                 </a>

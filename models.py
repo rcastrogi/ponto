@@ -65,8 +65,31 @@ def init_db():
             tipo_dia TEXT DEFAULT 'normal',
             status TEXT DEFAULT 'incompleto',
             observacao TEXT DEFAULT '',
+            editado_por INTEGER,
+            editado_em TEXT,
+            motivo_edicao TEXT DEFAULT '',
             FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id),
+            FOREIGN KEY (editado_por) REFERENCES colaboradores(id),
             UNIQUE(colaborador_id, data)
+        )
+    ''')
+
+    # Tabela de histórico de edições (audit trail)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS historico_edicoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registro_id INTEGER NOT NULL,
+            colaborador_id INTEGER NOT NULL,
+            editado_por INTEGER NOT NULL,
+            data_edicao TEXT NOT NULL,
+            acao TEXT NOT NULL,
+            campo TEXT,
+            valor_anterior TEXT,
+            valor_novo TEXT,
+            motivo TEXT DEFAULT '',
+            FOREIGN KEY (registro_id) REFERENCES registros_ponto(id),
+            FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id),
+            FOREIGN KEY (editado_por) REFERENCES colaboradores(id)
         )
     ''')
 
@@ -128,6 +151,15 @@ def init_db():
         cursor.execute("SELECT loja_id FROM colaboradores LIMIT 1")
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE colaboradores ADD COLUMN loja_id INTEGER REFERENCES lojas(id)")
+
+    # Migração: adicionar colunas de auditoria em registros_ponto se não existirem
+    for col, coldef in [('editado_por', 'INTEGER'), ('editado_em', 'TEXT'), ('motivo_edicao', 'TEXT DEFAULT \'\' ')]:
+        try:
+            cursor.execute(f"SELECT {col} FROM registros_ponto LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute(f"ALTER TABLE registros_ponto ADD COLUMN {col} {coldef}")
+
+    # Migração: criar tabela historico_edicoes se não existir (já criada acima pelo CREATE IF NOT EXISTS)
 
     # Inserir loja padrão se não existir nenhuma
     cursor.execute("SELECT id FROM lojas LIMIT 1")

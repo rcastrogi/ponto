@@ -1,73 +1,273 @@
 {% extends "base.html" %}
-{% block title %}Editar Registro{% endblock %}
+{% block title %}
+{% if modo == 'novo' %}Novo Registro{% elif modo == 'historico' %}Histórico de Edições{% else %}Editar Registro{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-lg-7">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white border-bottom">
+        <div class="col-lg-8">
+
+            <!-- Formulário -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-pencil me-2 text-primary"></i>
-                        Editar Registro - {{ registro.colaborador_nome }}
+                        {% if modo == 'novo' %}
+                        <i class="bi bi-plus-circle me-2 text-success"></i>Novo Registro de Ponto
+                        {% elif modo == 'historico' %}
+                        <i class="bi bi-clock-history me-2 text-info"></i>Histórico - {{ registro.colaborador_nome }}
+                        {% else %}
+                        <i class="bi bi-pencil me-2 text-primary"></i>Editar Registro - {{ registro.colaborador_nome }}
+                        {% endif %}
                     </h5>
+                    {% if registro and modo != 'historico' %}
+                    <div class="d-flex gap-1">
+                        <a href="{{ url_for('historico_registro', reg_id=registro.id) }}"
+                           class="btn btn-sm btn-outline-info" title="Ver Histórico">
+                            <i class="bi bi-clock-history me-1"></i>Histórico
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                                data-bs-target="#excluirModal" title="Excluir">
+                            <i class="bi bi-trash me-1"></i>Excluir
+                        </button>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="card-body p-4">
-                    <div class="alert alert-info mb-4">
-                        <i class="bi bi-calendar me-2"></i>
-                        Data: <strong>{{ registro.data[8:10] }}/{{ registro.data[5:7] }}/{{ registro.data[0:4] }}</strong>
-                    </div>
 
-                    <form method="POST">
+                    {% if modo != 'historico' %}
+                    {% if registro %}
+                    <!-- Info box: data do registro -->
+                    <div class="alert alert-info mb-4 d-flex align-items-center">
+                        <i class="bi bi-calendar me-2 fs-5"></i>
+                        <div>
+                            Data: <strong>{{ registro.data[8:10] }}/{{ registro.data[5:7] }}/{{ registro.data[0:4] }}</strong>
+                            {% if registro.editado_por %}
+                            <span class="badge bg-warning text-dark ms-2">
+                                <i class="bi bi-pencil-fill me-1"></i>Editado
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{% if modo == 'novo' %}{{ url_for('criar_registro') }}{% else %}{{ url_for('editar_registro', reg_id=registro.id) }}{% endif %}">
+                        {% if modo == 'novo' %}
+                        <!-- Seletor de colaborador e data -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label for="colaborador_id" class="form-label">
+                                    <i class="bi bi-person text-primary me-1"></i>Colaborador <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select" id="colaborador_id" name="colaborador_id" required>
+                                    <option value="">Selecione...</option>
+                                    {% for c in colaboradores %}
+                                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="data" class="form-label">
+                                    <i class="bi bi-calendar-date text-primary me-1"></i>Data <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" class="form-control" id="data" name="data" required>
+                            </div>
+                        </div>
+                        {% endif %}
+
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="entrada" class="form-label">
                                     <i class="bi bi-box-arrow-in-right text-success me-1"></i>Entrada
                                 </label>
                                 <input type="time" class="form-control" id="entrada" name="entrada"
-                                       value="{{ registro.entrada or '' }}">
+                                       value="{{ registro.entrada if registro else '' }}">
                             </div>
                             <div class="col-md-6">
                                 <label for="saida_almoco" class="form-label">
                                     <i class="bi bi-cup-hot text-warning me-1"></i>Saída Almoço
                                 </label>
                                 <input type="time" class="form-control" id="saida_almoco" name="saida_almoco"
-                                       value="{{ registro.saida_almoco or '' }}">
+                                       value="{{ registro.saida_almoco if registro else '' }}">
                             </div>
                             <div class="col-md-6">
                                 <label for="retorno_almoco" class="form-label">
                                     <i class="bi bi-arrow-return-left text-info me-1"></i>Retorno Almoço
                                 </label>
                                 <input type="time" class="form-control" id="retorno_almoco" name="retorno_almoco"
-                                       value="{{ registro.retorno_almoco or '' }}">
+                                       value="{{ registro.retorno_almoco if registro else '' }}">
                             </div>
                             <div class="col-md-6">
                                 <label for="saida" class="form-label">
                                     <i class="bi bi-box-arrow-right text-danger me-1"></i>Saída
                                 </label>
                                 <input type="time" class="form-control" id="saida" name="saida"
-                                       value="{{ registro.saida or '' }}">
+                                       value="{{ registro.saida if registro else '' }}">
                             </div>
                             <div class="col-12">
                                 <label for="observacao" class="form-label">Observação</label>
                                 <textarea class="form-control" id="observacao" name="observacao"
-                                          rows="2">{{ registro.observacao or '' }}</textarea>
+                                          rows="2">{{ registro.observacao if registro else '' }}</textarea>
+                            </div>
+                            <div class="col-12">
+                                <label for="motivo" class="form-label">
+                                    <i class="bi bi-chat-left-text text-warning me-1"></i>
+                                    Motivo da {{ 'criação' if modo == 'novo' else 'edição' }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <textarea class="form-control" id="motivo" name="motivo" rows="2"
+                                          required placeholder="Informe o motivo (obrigatório para auditoria)"></textarea>
+                                <div class="form-text">
+                                    <i class="bi bi-shield-check me-1"></i>
+                                    Registrado para fins de auditoria com data, hora e autor.
+                                </div>
                             </div>
                         </div>
 
                         <div class="d-flex justify-content-between mt-4">
+                            {% if registro %}
                             <a href="{{ url_for('relatorio_colaborador', colab_id=registro.colaborador_id) }}"
                                class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left me-1"></i>Voltar
                             </a>
-                            <button type="submit" class="btn btn-primary">
+                            {% else %}
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Voltar
+                            </a>
+                            {% endif %}
+                            <button type="submit" class="btn btn-{{ 'success' if modo == 'novo' else 'primary' }}">
+                                {% if modo == 'novo' %}
+                                <i class="bi bi-plus-lg me-1"></i>Criar Registro
+                                {% else %}
                                 <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                                {% endif %}
                             </button>
                         </div>
                     </form>
+                    {% else %}
+                    <!-- Modo histórico: apenas exibir dados -->
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-calendar me-2"></i>
+                        Data: <strong>{{ registro.data[8:10] }}/{{ registro.data[5:7] }}/{{ registro.data[0:4] }}</strong>
+                        <span class="ms-3"><i class="bi bi-clock me-1"></i>
+                            {{ registro.entrada or '-' }} → {{ registro.saida_almoco or '-' }} |
+                            {{ registro.retorno_almoco or '-' }} → {{ registro.saida or '-' }}
+                        </span>
+                        <span class="ms-3 fw-bold">{{ '%.2f'|format(registro.horas_trabalhadas) }}h</span>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+
+            <!-- Histórico de Edições -->
+            {% if historico %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2 text-info"></i>
+                        Histórico de Edições ({{ historico|length }})
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for h in historico %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    {% if h.acao == 'criacao' %}
+                                    <span class="badge bg-success me-2">Criação</span>
+                                    {% elif h.acao == 'edicao' %}
+                                    <span class="badge bg-primary me-2">Edição</span>
+                                    {% elif h.acao == 'exclusao' %}
+                                    <span class="badge bg-danger me-2">Exclusão</span>
+                                    {% endif %}
+
+                                    <strong>{{ h.editor_nome }}</strong>
+
+                                    {% if h.campo %}
+                                    <span class="text-muted ms-1">
+                                        alterou <code>{{ h.campo }}</code>:
+                                        <span class="text-danger">{{ h.valor_anterior or '(vazio)' }}</span>
+                                        → <span class="text-success">{{ h.valor_novo or '(vazio)' }}</span>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted text-nowrap">
+                                    {{ h.data_edicao[8:10] }}/{{ h.data_edicao[5:7] }}/{{ h.data_edicao[0:4] }}
+                                    {{ h.data_edicao[11:16] }}
+                                </small>
+                            </div>
+                            {% if h.motivo %}
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <i class="bi bi-chat-left-text me-1"></i>{{ h.motivo }}
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% elif modo == 'historico' %}
+            <div class="alert alert-secondary text-center">
+                <i class="bi bi-clock-history me-2"></i>Nenhuma edição registrada para este registro.
+            </div>
+            {% endif %}
+
+            {% if modo == 'historico' %}
+            <div class="d-flex justify-content-between">
+                <a href="{{ url_for('relatorio_colaborador', colab_id=registro.colaborador_id) }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Voltar ao Relatório
+                </a>
+                <a href="{{ url_for('editar_registro', reg_id=registro.id) }}"
+                   class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i>Editar Registro
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
+
+<!-- Modal de Exclusão -->
+{% if registro and modo != 'historico' %}
+<div class="modal fade" id="excluirModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('excluir_registro', reg_id=registro.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-trash me-2"></i>Excluir Registro
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Deseja realmente excluir o registro de ponto de
+                       <strong>{{ registro.colaborador_nome }}</strong> do dia
+                       <strong>{{ registro.data[8:10] }}/{{ registro.data[5:7] }}/{{ registro.data[0:4] }}</strong>?
+                    </p>
+                    <p class="text-danger mb-3">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Esta ação não pode ser desfeita.
+                    </p>
+                    <div class="mb-0">
+                        <label for="motivo_exclusao" class="form-label">
+                            Motivo da exclusão <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="motivo_exclusao" name="motivo" rows="2"
+                                  required placeholder="Informe o motivo da exclusão"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Confirmar Exclusão
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

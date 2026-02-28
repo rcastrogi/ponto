@@ -8,10 +8,12 @@
             <h3><i class="bi bi-bar-chart me-2"></i>{{ colaborador.nome }}</h3>
             <span class="text-muted">{{ colaborador.cargo }} | {{ colaborador.email }}</span>
         </div>
-        <div>            <a href=\"{{ url_for('exportar_pdf', colab_id=colaborador.id, mes=mes) }}\"
-               class=\"btn btn-danger me-2\">
-                <i class=\"bi bi-file-earmark-pdf me-1\"></i>Exportar PDF
-            </a>            <a href="{{ url_for('exportar_excel', colab_id=colaborador.id, mes=mes) }}"
+        <div>
+            <a href="{{ url_for('exportar_pdf', colab_id=colaborador.id, mes=mes) }}"
+               class="btn btn-danger me-2">
+                <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
+            </a>
+            <a href="{{ url_for('exportar_excel', colab_id=colaborador.id, mes=mes) }}"
                class="btn btn-success me-2">
                 <i class="bi bi-file-earmark-excel me-1"></i>Exportar Excel
             </a>
@@ -131,7 +133,13 @@
                     <tbody>
                         {% for r in semana_data.registros %}
                         <tr>
-                            <td>{{ r.data[8:10] }}/{{ r.data[5:7] }}/{{ r.data[0:4] }}</td>
+                            <td>
+                                {{ r.data[8:10] }}/{{ r.data[5:7] }}/{{ r.data[0:4] }}
+                                {% if r.editado_por %}
+                                <i class="bi bi-pencil-fill text-warning ms-1" style="font-size: 0.65rem;"
+                                   title="Editado por gestor"></i>
+                                {% endif %}
+                            </td>
                             <td class="text-center">{{ r.entrada or '-' }}</td>
                             <td class="text-center">{{ r.saida_almoco or '-' }}</td>
                             <td class="text-center">{{ r.retorno_almoco or '-' }}</td>
@@ -141,6 +149,10 @@
                                 <a href="{{ url_for('editar_registro', reg_id=r.id) }}"
                                    class="btn btn-sm btn-outline-primary" title="Editar">
                                     <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{{ url_for('historico_registro', reg_id=r.id) }}"
+                                   class="btn btn-sm btn-outline-info" title="Histórico">
+                                    <i class="bi bi-clock-history"></i>
                                 </a>
                             </td>
                         </tr>

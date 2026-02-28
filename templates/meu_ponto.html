@@ -67,6 +67,11 @@
                                 <span class="fs-4 fw-bold text-success">
                                     {{ registro_hoje.entrada if registro_hoje and registro_hoje.entrada else '--:--' }}
                                 </span>
+                                {% if registro_hoje and registro_hoje.atraso_minutos and registro_hoje.atraso_minutos > 0 %}
+                                <br><span class="badge bg-danger" style="font-size: 0.7rem;">
+                                    <i class="bi bi-alarm me-1"></i>{{ registro_hoje.atraso_minutos }}min atraso
+                                </span>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="col-6">
@@ -181,6 +186,24 @@
                 </div>
             </div>
         </div>
+        {% if atrasos_mes > 0 %}
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-danger border-4">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Atrasos no Mês</h6>
+                            <h3 class="mb-0 fw-bold text-danger">{{ atrasos_mes }}</h3>
+                            <small class="text-muted">{{ total_atraso_mes }}min total</small>
+                        </div>
+                        <div class="text-danger opacity-50">
+                            <i class="bi bi-alarm-fill" style="font-size: 2.5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Weekly Table -->
@@ -216,6 +239,9 @@
                                 <span class="badge bg-success bg-opacity-10 text-success">
                                     {{ r.entrada or '-' }}
                                 </span>
+                                {% if r.atraso_minutos and r.atraso_minutos > 0 %}
+                                <br><span class="badge bg-danger" style="font-size: 0.65rem;">{{ r.atraso_minutos }}min</span>
+                                {% endif %}
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-warning bg-opacity-10 text-warning">
@@ -282,7 +308,12 @@
                         {% for r in registros_mes %}
                         <tr>
                             <td><strong>{{ r.data[8:10] }}/{{ r.data[5:7] }}/{{ r.data[0:4] }}</strong></td>
-                            <td class="text-center">{{ r.entrada or '-' }}</td>
+                            <td class="text-center">
+                                {{ r.entrada or '-' }}
+                                {% if r.atraso_minutos and r.atraso_minutos > 0 %}
+                                <span class="badge bg-danger" style="font-size: 0.65rem;">{{ r.atraso_minutos }}min</span>
+                                {% endif %}
+                            </td>
                             <td class="text-center">{{ r.saida_almoco or '-' }}</td>
                             <td class="text-center">{{ r.retorno_almoco or '-' }}</td>
                             <td class="text-center">{{ r.saida or '-' }}</td>

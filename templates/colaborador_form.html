@@ -62,6 +62,15 @@
                                        value="{{ colaborador.max_horas_semana if colaborador else 40 }}">
                                 <small class="text-muted">Acima disso = hora extra</small>
                             </div>
+                            <div class="col-md-6">
+                                <label for="horario_entrada" class="form-label">
+                                    <i class="bi bi-alarm text-primary me-1"></i>Horário de Entrada
+                                </label>
+                                <input type="time" class="form-control" id="horario_entrada"
+                                       name="horario_entrada"
+                                       value="{{ colaborador.horario_entrada if colaborador else '' }}">
+                                <small class="text-muted">Deixe vazio = sem controle de atraso</small>
+                            </div>
                             <div class="col-md-4">
                                 <label for="horas_dia_normal" class="form-label">Horas/Dia Normal</label>
                                 <input type="number" class="form-control" id="horas_dia_normal"

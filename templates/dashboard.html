@@ -67,6 +67,21 @@
                 </div>
             </div>
         </div>
+        {% if atrasos_hoje > 0 %}
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0 border-start border-danger border-4 border-opacity-75">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="text-muted mb-1">Atrasos Hoje</h6>
+                            <h3 class="mb-0 fw-bold text-danger">{{ atrasos_hoje }}</h3>
+                        </div>
+                        <i class="bi bi-alarm-fill text-danger opacity-50" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Charts Row -->
@@ -152,6 +167,11 @@
                                         <span class="badge bg-success bg-opacity-10 text-success">
                                             {{ r.entrada or '-' }}
                                         </span>
+                                        {% if r.atraso_minutos and r.atraso_minutos > 0 %}
+                                        <br><span class="badge bg-danger bg-opacity-75" style="font-size: 0.65rem;">
+                                            <i class="bi bi-alarm me-1"></i>{{ r.atraso_minutos }}min atraso
+                                        </span>
+                                        {% endif %}
                                     </td>
                                     <td class="text-center">
                                         <span class="badge bg-warning bg-opacity-10 text-warning">

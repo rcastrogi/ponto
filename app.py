@@ -400,6 +400,10 @@ def meu_ponto():
     for h in semanas_no_mes.values():
         horas_extras_mes += calcular_horas_extras_semana(h, max_horas)
 
+    # Atrasos no mês
+    atrasos_mes = sum(1 for r in registros_mes if r['atraso_minutos'] and r['atraso_minutos'] > 0)
+    total_atraso_mes = sum(r['atraso_minutos'] for r in registros_mes if r['atraso_minutos'] and r['atraso_minutos'] > 0)
+
     # Tipo do dia (normal ou especial)
     tipo_dia_hoje = tipo_dia(hoje_dt, db)
     feriado_hoje = is_feriado(hoje_dt, db)
@@ -444,6 +448,8 @@ def meu_ponto():
                            min_almoco=min_almoco,
                            retorno_minimo=retorno_minimo,
                            proximo_tipo=proximo_tipo,
+                           atrasos_mes=atrasos_mes,
+                           total_atraso_mes=total_atraso_mes,
                            justificativas=justificativas)
 
 
@@ -509,12 +515,39 @@ def registrar_ponto():
 
     if not registro:
         # Criar registro do dia
+        # Calcular atraso (se colaborador tem horário de entrada definido)
+        colaborador = db.execute(
+            'SELECT * FROM colaboradores WHERE id = ?', (user_id,)
+        ).fetchone()
+        atraso = 0
+        horario_esp = colaborador['horario_entrada'] if colaborador else ''
+        if horario_esp:
+            tolerancia = db.execute(
+                "SELECT valor FROM configuracoes WHERE chave = 'tolerancia_minutos'"
+            ).fetchone()
+            tol_min = int(tolerancia['valor']) if tolerancia else 15
+            fmt = '%H:%M'
+            try:
+                h_esperada = datetime.strptime(horario_esp, fmt)
+                h_real = datetime.strptime(agora_str, fmt)
+                diff = (h_real - h_esperada).total_seconds() / 60
+                if diff > tol_min:
+                    atraso = int(diff)
+            except (ValueError, TypeError):
+                pass
+
         db.execute(
-            '''INSERT INTO registros_ponto (colaborador_id, data, entrada, tipo_dia, status)
-               VALUES (?, ?, ?, ?, 'em_andamento')''',
-            (user_id, hoje_iso, agora_str, td)
+            '''INSERT INTO registros_ponto
+               (colaborador_id, data, entrada, tipo_dia, status, atraso_minutos)
+               VALUES (?, ?, ?, ?, 'em_andamento', ?)''',
+            (user_id, hoje_iso, agora_str, td, atraso)
         )
-        flash(f'Entrada registrada às {agora_str}!', 'success')
+
+        if atraso > 0:
+            flash(f'Entrada registrada às {agora_str} — atraso de {atraso} min '
+                  f'(horário esperado: {horario_esp}).', 'warning')
+        else:
+            flash(f'Entrada registrada às {agora_str}!', 'success')
     else:
         # Atualizar registro existente
         db.execute(
@@ -659,6 +692,9 @@ def dashboard():
            ORDER BY j.data_registro DESC'''
     ).fetchall()
 
+    # Atrasos de hoje
+    atrasos_hoje = sum(1 for r in registros_hoje if r['atraso_minutos'] and r['atraso_minutos'] > 0)
+
     # Alertas: colaboradores sem registro hoje (e que não tem justificativa)
     ausentes = []
     for c in colaboradores:
@@ -767,6 +803,7 @@ def dashboard():
                            chart_mensal_horas=chart_mensal_horas,
                            chart_mensal_extras=chart_mensal_extras,
                            chart_ranking_nomes=chart_ranking_nomes,
+                           atrasos_hoje=atrasos_hoje,
                            chart_ranking_horas=chart_ranking_horas)
 
 
@@ -920,6 +957,7 @@ def novo_colaborador():
         horas_dia_normal = float(request.form.get('horas_dia_normal', 8))
         horas_dia_especial = float(request.form.get('horas_dia_especial', 6))
         folgas_semana = int(request.form.get('folgas_semana', 2))
+        horario_entrada = request.form.get('horario_entrada', '').strip()
         is_gestor = 1 if request.form.get('is_gestor') else 0
 
         if not nome or not email:
@@ -935,11 +973,11 @@ def novo_colaborador():
                 '''INSERT INTO colaboradores
                    (nome, email, senha, cargo, departamento, loja_id,
                     max_horas_semana, horas_dia_normal, horas_dia_especial,
-                    folgas_semana, is_gestor, primeiro_acesso)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    folgas_semana, horario_entrada, is_gestor, primeiro_acesso)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (nome, email, '', cargo, departamento, loja_id,
                  max_horas_semana, horas_dia_normal, horas_dia_especial,
-                 folgas_semana, is_gestor, 1)
+                 folgas_semana, horario_entrada, is_gestor, 1)
             )
             db.commit()
             flash(f'Colaborador "{nome}" cadastrado com sucesso! No primeiro login, será solicitada a criação de senha.', 'success')
@@ -979,6 +1017,7 @@ def editar_colaborador(colab_id):
         horas_dia_normal = float(request.form.get('horas_dia_normal', 8))
         horas_dia_especial = float(request.form.get('horas_dia_especial', 6))
         folgas_semana = int(request.form.get('folgas_semana', 2))
+        horario_entrada = request.form.get('horario_entrada', '').strip()
         is_gestor = 1 if request.form.get('is_gestor') else 0
         ativo = 1 if request.form.get('ativo') else 0
         nova_senha = request.form.get('senha', '').strip()
@@ -990,33 +1029,33 @@ def editar_colaborador(colab_id):
                     '''UPDATE colaboradores
                        SET nome=?, email=?, senha=?, cargo=?, departamento=?, loja_id=?,
                            max_horas_semana=?, horas_dia_normal=?, horas_dia_especial=?,
-                           folgas_semana=?, is_gestor=?, ativo=?
+                           folgas_semana=?, horario_entrada=?, is_gestor=?, ativo=?
                        WHERE id=?''',
                     (nome, email, generate_password_hash(nova_senha), cargo, departamento, loja_id,
                      max_horas_semana, horas_dia_normal, horas_dia_especial,
-                     folgas_semana, is_gestor, ativo, colab_id)
+                     folgas_semana, horario_entrada, is_gestor, ativo, colab_id)
                 )
             elif resetar_acesso:
                 db.execute(
                     '''UPDATE colaboradores
                        SET nome=?, email=?, senha=?, cargo=?, departamento=?, loja_id=?,
                            max_horas_semana=?, horas_dia_normal=?, horas_dia_especial=?,
-                           folgas_semana=?, is_gestor=?, ativo=?, primeiro_acesso=1
+                           folgas_semana=?, horario_entrada=?, is_gestor=?, ativo=?, primeiro_acesso=1
                        WHERE id=?''',
                     (nome, email, '', cargo, departamento, loja_id,
                      max_horas_semana, horas_dia_normal, horas_dia_especial,
-                     folgas_semana, is_gestor, ativo, colab_id)
+                     folgas_semana, horario_entrada, is_gestor, ativo, colab_id)
                 )
             else:
                 db.execute(
                     '''UPDATE colaboradores
                        SET nome=?, email=?, cargo=?, departamento=?, loja_id=?,
                            max_horas_semana=?, horas_dia_normal=?, horas_dia_especial=?,
-                           folgas_semana=?, is_gestor=?, ativo=?
+                           folgas_semana=?, horario_entrada=?, is_gestor=?, ativo=?
                        WHERE id=?''',
                     (nome, email, cargo, departamento, loja_id,
                      max_horas_semana, horas_dia_normal, horas_dia_especial,
-                     folgas_semana, is_gestor, ativo, colab_id)
+                     folgas_semana, horario_entrada, is_gestor, ativo, colab_id)
                 )
             db.commit()
             flash(f'Colaborador "{nome}" atualizado!', 'success')

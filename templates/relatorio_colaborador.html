@@ -140,7 +140,14 @@
                                    title="Editado por gestor"></i>
                                 {% endif %}
                             </td>
-                            <td class="text-center">{{ r.entrada or '-' }}</td>
+                            <td class="text-center">
+                                {{ r.entrada or '-' }}
+                                {% if r.atraso_minutos and r.atraso_minutos > 0 %}
+                                <span class="badge bg-danger bg-opacity-75" style="font-size: 0.6rem;">
+                                    <i class="bi bi-alarm me-1"></i>{{ r.atraso_minutos }}min
+                                </span>
+                                {% endif %}
+                            </td>
                             <td class="text-center">{{ r.saida_almoco or '-' }}</td>
                             <td class="text-center">{{ r.retorno_almoco or '-' }}</td>
                             <td class="text-center">{{ r.saida or '-' }}</td>

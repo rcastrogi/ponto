@@ -44,6 +44,7 @@ def init_db():
             horas_dia_normal REAL DEFAULT 8.0,
             horas_dia_especial REAL DEFAULT 6.0,
             folgas_semana INTEGER DEFAULT 2,
+            horario_entrada TEXT DEFAULT '',
             is_gestor INTEGER DEFAULT 0,
             ativo INTEGER DEFAULT 1,
             data_cadastro TEXT DEFAULT (datetime('now', 'localtime')),
@@ -65,6 +66,7 @@ def init_db():
             tipo_dia TEXT DEFAULT 'normal',
             status TEXT DEFAULT 'incompleto',
             observacao TEXT DEFAULT '',
+            atraso_minutos INTEGER DEFAULT 0,
             editado_por INTEGER,
             editado_em TEXT,
             motivo_edicao TEXT DEFAULT '',
@@ -152,6 +154,12 @@ def init_db():
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE colaboradores ADD COLUMN loja_id INTEGER REFERENCES lojas(id)")
 
+    # Migração: adicionar horario_entrada em colaboradores se não existir
+    try:
+        cursor.execute("SELECT horario_entrada FROM colaboradores LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE colaboradores ADD COLUMN horario_entrada TEXT DEFAULT ''")
+
     # Migração: adicionar colunas de auditoria em registros_ponto se não existirem
     for col, coldef in [('editado_por', 'INTEGER'), ('editado_em', 'TEXT'), ('motivo_edicao', 'TEXT DEFAULT \'\' ')]:
         try:
@@ -159,7 +167,11 @@ def init_db():
         except sqlite3.OperationalError:
             cursor.execute(f"ALTER TABLE registros_ponto ADD COLUMN {col} {coldef}")
 
-    # Migração: criar tabela historico_edicoes se não existir (já criada acima pelo CREATE IF NOT EXISTS)
+    # Migração: adicionar atraso_minutos em registros_ponto se não existir
+    try:
+        cursor.execute("SELECT atraso_minutos FROM registros_ponto LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE registros_ponto ADD COLUMN atraso_minutos INTEGER DEFAULT 0")
 
     # Inserir loja padrão se não existir nenhuma
     cursor.execute("SELECT id FROM lojas LIMIT 1")
@@ -169,7 +181,7 @@ def init_db():
 
     # Inserir configurações padrão
     configs_padrao = [
-        ('tolerancia_minutos', '10'),
+        ('tolerancia_minutos', '15'),
         ('nome_empresa', 'Piticas'),
     ]
     for chave, valor in configs_padrao:

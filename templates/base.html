@@ -26,30 +26,34 @@
                             <i class="bi bi-speedometer2 me-1"></i>Dashboard
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('lista_colaboradores') }}">
-                            <i class="bi bi-people me-1"></i>Colaboradores
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-gear me-1"></i>Gestão
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('lista_colaboradores') }}">
+                                <i class="bi bi-people me-2"></i>Colaboradores
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('lista_lojas') }}">
+                                <i class="bi bi-shop me-2"></i>Lojas
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('lista_feriados') }}">
+                                <i class="bi bi-calendar-event me-2"></i>Feriados
+                            </a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('lista_feriados') }}">
-                            <i class="bi bi-calendar-event me-1"></i>Feriados
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-clipboard-data me-1"></i>Controle
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('lista_lojas') }}">
-                            <i class="bi bi-shop me-1"></i>Lojas
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('banco_horas') }}">
-                            <i class="bi bi-bank me-1"></i>Banco de Horas
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('escalas') }}">
-                            <i class="bi bi-calendar2-week me-1"></i>Escalas
-                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('escalas') }}">
+                                <i class="bi bi-calendar2-week me-2"></i>Escalas
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('banco_horas') }}">
+                                <i class="bi bi-bank me-2"></i>Banco de Horas
+                            </a></li>
+                        </ul>
                     </li>
                     {% endif %}
                     <li class="nav-item">

@@ -430,6 +430,19 @@ def meu_ponto():
         (user_id,)
     ).fetchall()
 
+    # Escala de hoje (se existir)
+    escala_hoje = db.execute(
+        'SELECT * FROM escalas WHERE colaborador_id = ? AND data = ?',
+        (user_id, hoje_iso)
+    ).fetchone()
+
+    # Escalas da semana (para mostrar ao colaborador)
+    inicio_sem, fim_sem = get_semana_inicio_fim(hoje_dt)
+    escalas_semana = db.execute(
+        'SELECT * FROM escalas WHERE colaborador_id = ? AND data BETWEEN ? AND ? ORDER BY data',
+        (user_id, inicio_sem.isoformat(), fim_sem.isoformat())
+    ).fetchall()
+
     db.close()
 
     return render_template('meu_ponto.html',
@@ -450,6 +463,8 @@ def meu_ponto():
                            proximo_tipo=proximo_tipo,
                            atrasos_mes=atrasos_mes,
                            total_atraso_mes=total_atraso_mes,
+                           escala_hoje=escala_hoje,
+                           escalas_semana=escalas_semana,
                            justificativas=justificativas)
 
 
@@ -515,12 +530,24 @@ def registrar_ponto():
 
     if not registro:
         # Criar registro do dia
-        # Calcular atraso (se colaborador tem horário de entrada definido)
+        # Calcular atraso — prioridade: escala do dia > horário fixo do colaborador
         colaborador = db.execute(
             'SELECT * FROM colaboradores WHERE id = ?', (user_id,)
         ).fetchone()
         atraso = 0
-        horario_esp = colaborador['horario_entrada'] if colaborador else ''
+
+        # Primeiro verificar escala do dia
+        escala_hoje = db.execute(
+            'SELECT * FROM escalas WHERE colaborador_id = ? AND data = ?',
+            (user_id, hoje_iso)
+        ).fetchone()
+
+        horario_esp = ''
+        if escala_hoje and escala_hoje['horario_entrada']:
+            horario_esp = escala_hoje['horario_entrada']
+        elif colaborador and colaborador['horario_entrada']:
+            horario_esp = colaborador['horario_entrada']
+
         if horario_esp:
             tolerancia = db.execute(
                 "SELECT valor FROM configuracoes WHERE chave = 'tolerancia_minutos'"
@@ -781,6 +808,19 @@ def dashboard():
     chart_ranking_nomes = [r['nome'].split()[0] for r in ranking]  # Primeiro nome
     chart_ranking_horas = [round(r['total_horas'], 2) for r in ranking]
 
+    # Escalas de hoje (para mostrar quem tem escala/folga)
+    escalas_hoje = db.execute(
+        '''SELECT e.*, c.nome as colaborador_nome
+           FROM escalas e
+           JOIN colaboradores c ON e.colaborador_id = c.id
+           WHERE e.data = ? AND c.ativo = 1
+           ORDER BY c.nome''',
+        (hoje_iso,)
+    ).fetchall()
+
+    escalados_hoje = sum(1 for e in escalas_hoje if not e['folga'])
+    folgas_hoje = sum(1 for e in escalas_hoje if e['folga'])
+
     db.close()
 
     return render_template('dashboard.html',
@@ -804,6 +844,9 @@ def dashboard():
                            chart_mensal_extras=chart_mensal_extras,
                            chart_ranking_nomes=chart_ranking_nomes,
                            atrasos_hoje=atrasos_hoje,
+                           escalas_hoje=escalas_hoje,
+                           escalados_hoje=escalados_hoje,
+                           folgas_hoje=folgas_hoje,
                            chart_ranking_horas=chart_ranking_horas)
 
 
@@ -2024,6 +2067,236 @@ def fechar_mes_banco():
                 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
     flash(f'Mês {meses_pt[data_ref.month]}/{data_ref.year} fechado para {count} colaborador(es)!', 'success')
     return redirect(url_for('banco_horas'))
+
+
+# ---------------------------------------------------------------------------
+# Escalas de Trabalho
+# ---------------------------------------------------------------------------
+
+DIAS_SEMANA_PT = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+DIAS_SEMANA_CURTO = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+
+
+@app.route('/escalas')
+@gestor_required
+def escalas():
+    db = get_db()
+
+    # Semana selecionada (parâmetro ou semana atual)
+    semana_param = request.args.get('semana', '')
+    if semana_param:
+        try:
+            data_ref = date.fromisoformat(semana_param)
+        except (ValueError, TypeError):
+            data_ref = hoje()
+    else:
+        data_ref = hoje()
+
+    inicio_sem, fim_sem = get_semana_inicio_fim(data_ref)
+
+    # Navegação entre semanas
+    semana_anterior = (inicio_sem - timedelta(days=7)).isoformat()
+    semana_proxima = (inicio_sem + timedelta(days=7)).isoformat()
+
+    # Dias da semana (seg-dom)
+    dias_semana = []
+    for i in range(7):
+        d = inicio_sem + timedelta(days=i)
+        dias_semana.append({
+            'data': d,
+            'data_iso': d.isoformat(),
+            'dia_nome': DIAS_SEMANA_CURTO[i],
+            'dia_num': d.strftime('%d/%m'),
+        })
+
+    # Colaboradores ativos (não gestores)
+    colaboradores = db.execute(
+        'SELECT * FROM colaboradores WHERE ativo = 1 ORDER BY nome'
+    ).fetchall()
+
+    # Filtro por loja
+    loja_id = request.args.get('loja', '', type=str)
+    lojas = db.execute('SELECT * FROM lojas WHERE ativo = 1 ORDER BY nome').fetchall()
+    if loja_id and loja_id.isdigit():
+        loja_id = int(loja_id)
+        colaboradores = [c for c in colaboradores if c['loja_id'] == loja_id]
+    else:
+        loja_id = ''
+
+    # Carregar escalas existentes para esta semana
+    escalas_map = {}  # {colaborador_id: {data_iso: escala_row}}
+    if colaboradores:
+        ids_in = ','.join([str(c['id']) for c in colaboradores])
+        escalas_rows = db.execute(
+            f'''SELECT * FROM escalas
+                WHERE colaborador_id IN ({ids_in})
+                AND data BETWEEN ? AND ?''',
+            (inicio_sem.isoformat(), fim_sem.isoformat())
+        ).fetchall()
+        for e in escalas_rows:
+            cid = e['colaborador_id']
+            if cid not in escalas_map:
+                escalas_map[cid] = {}
+            escalas_map[cid][e['data']] = dict(e)
+
+    # Verificar se semana anterior tem escalas (para botão copiar)
+    sem_ant_inicio = inicio_sem - timedelta(days=7)
+    sem_ant_fim = sem_ant_inicio + timedelta(days=6)
+    tem_semana_anterior = db.execute(
+        'SELECT COUNT(*) as cnt FROM escalas WHERE data BETWEEN ? AND ?',
+        (sem_ant_inicio.isoformat(), sem_ant_fim.isoformat())
+    ).fetchone()['cnt'] > 0
+
+    db.close()
+
+    return render_template('escalas.html',
+                           colaboradores=colaboradores,
+                           dias_semana=dias_semana,
+                           escalas_map=escalas_map,
+                           inicio_sem=inicio_sem,
+                           fim_sem=fim_sem,
+                           semana_anterior=semana_anterior,
+                           semana_proxima=semana_proxima,
+                           tem_semana_anterior=tem_semana_anterior,
+                           lojas=lojas,
+                           loja_id=loja_id)
+
+
+@app.route('/escalas/salvar', methods=['POST'])
+@gestor_required
+def salvar_escalas():
+    db = get_db()
+    dados = request.form
+
+    inicio_sem = dados.get('inicio_sem', '')
+    colaboradores = db.execute(
+        'SELECT id FROM colaboradores WHERE ativo = 1'
+    ).fetchall()
+
+    count = 0
+    for c in colaboradores:
+        cid = c['id']
+        for i in range(7):
+            d = date.fromisoformat(inicio_sem) + timedelta(days=i)
+            d_iso = d.isoformat()
+
+            entrada = dados.get(f'entrada_{cid}_{d_iso}', '').strip()
+            saida = dados.get(f'saida_{cid}_{d_iso}', '').strip()
+            folga = 1 if dados.get(f'folga_{cid}_{d_iso}') else 0
+            obs = dados.get(f'obs_{cid}_{d_iso}', '').strip()
+
+            # Só salvar se tem algum dado preenchido
+            if entrada or saida or folga or obs:
+                db.execute(
+                    '''INSERT INTO escalas (colaborador_id, data, horario_entrada, horario_saida, folga, observacao)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(colaborador_id, data)
+                       DO UPDATE SET horario_entrada = ?, horario_saida = ?, folga = ?, observacao = ?''',
+                    (cid, d_iso, entrada, saida, folga, obs,
+                     entrada, saida, folga, obs)
+                )
+                count += 1
+            else:
+                # Remover escala se tudo vazio
+                db.execute(
+                    'DELETE FROM escalas WHERE colaborador_id = ? AND data = ?',
+                    (cid, d_iso)
+                )
+
+    db.commit()
+    db.close()
+
+    flash(f'Escala salva com sucesso! ({count} registros)', 'success')
+    return redirect(url_for('escalas', semana=inicio_sem))
+
+
+@app.route('/escalas/copiar-semana', methods=['POST'])
+@gestor_required
+def copiar_semana_escalas():
+    db = get_db()
+    inicio_destino = request.form.get('inicio_sem', '')
+
+    try:
+        dt_destino = date.fromisoformat(inicio_destino)
+    except (ValueError, TypeError):
+        flash('Data inválida.', 'danger')
+        db.close()
+        return redirect(url_for('escalas'))
+
+    inicio_origem = dt_destino - timedelta(days=7)
+    fim_origem = inicio_origem + timedelta(days=6)
+
+    # Carregar escalas da semana anterior
+    escalas_origem = db.execute(
+        'SELECT * FROM escalas WHERE data BETWEEN ? AND ?',
+        (inicio_origem.isoformat(), fim_origem.isoformat())
+    ).fetchall()
+
+    if not escalas_origem:
+        flash('Semana anterior não possui escalas para copiar.', 'warning')
+        db.close()
+        return redirect(url_for('escalas', semana=inicio_destino))
+
+    count = 0
+    for e in escalas_origem:
+        # Calcular a data correspondente na semana destino
+        d_origem = date.fromisoformat(e['data'])
+        diff_dias = (d_origem - inicio_origem).days
+        d_destino = dt_destino + timedelta(days=diff_dias)
+
+        db.execute(
+            '''INSERT INTO escalas (colaborador_id, data, horario_entrada, horario_saida, folga, observacao)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(colaborador_id, data)
+               DO UPDATE SET horario_entrada = ?, horario_saida = ?, folga = ?, observacao = ?''',
+            (e['colaborador_id'], d_destino.isoformat(),
+             e['horario_entrada'], e['horario_saida'], e['folga'], e['observacao'],
+             e['horario_entrada'], e['horario_saida'], e['folga'], e['observacao'])
+        )
+        count += 1
+
+    db.commit()
+    db.close()
+
+    flash(f'Escala copiada da semana anterior! ({count} registros)', 'success')
+    return redirect(url_for('escalas', semana=inicio_destino))
+
+
+@app.route('/api/escalas/semana')
+@gestor_required
+def api_escalas_semana():
+    """Retorna JSON com resumo da escala de uma semana (para o dashboard)."""
+    db = get_db()
+    semana = request.args.get('semana', hoje().isoformat())
+    try:
+        data_ref = date.fromisoformat(semana)
+    except (ValueError, TypeError):
+        data_ref = hoje()
+
+    inicio_sem, fim_sem = get_semana_inicio_fim(data_ref)
+
+    escalas_rows = db.execute(
+        '''SELECT e.*, c.nome as colaborador_nome
+           FROM escalas e
+           JOIN colaboradores c ON e.colaborador_id = c.id
+           WHERE e.data BETWEEN ? AND ? AND c.ativo = 1
+           ORDER BY c.nome, e.data''',
+        (inicio_sem.isoformat(), fim_sem.isoformat())
+    ).fetchall()
+
+    resultado = {}
+    for e in escalas_rows:
+        cid = e['colaborador_id']
+        if cid not in resultado:
+            resultado[cid] = {'nome': e['colaborador_nome'], 'dias': {}}
+        resultado[cid]['dias'][e['data']] = {
+            'entrada': e['horario_entrada'],
+            'saida': e['horario_saida'],
+            'folga': bool(e['folga']),
+        }
+
+    db.close()
+    return jsonify(resultado)
 
 
 # ---------------------------------------------------------------------------

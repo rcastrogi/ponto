@@ -148,6 +148,21 @@ def init_db():
         )
     ''')
 
+    # Tabela de escalas (horário por colaborador por dia)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS escalas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            colaborador_id INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            horario_entrada TEXT DEFAULT '',
+            horario_saida TEXT DEFAULT '',
+            folga INTEGER DEFAULT 0,
+            observacao TEXT DEFAULT '',
+            FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id),
+            UNIQUE(colaborador_id, data)
+        )
+    ''')
+
     # Migração: adicionar loja_id em colaboradores se não existir
     try:
         cursor.execute("SELECT loja_id FROM colaboradores LIMIT 1")

@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Escalas de Trabalho{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-calendar2-week me-2"></i>Escalas de Trabalho</h3>
+    </div>
+
+    <!-- Navegação de Semana -->
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <a href="{{ url_for('escalas', semana=semana_anterior, loja=loja_id) }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-chevron-left me-1"></i>Semana Anterior
+                </a>
+                <div class="text-center">
+                    <h5 class="mb-0 fw-bold text-primary">
+                        {{ inicio_sem.strftime('%d/%m/%Y') }} — {{ fim_sem.strftime('%d/%m/%Y') }}
+                    </h5>
+                    <small class="text-muted">
+                        {% set meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'] %}
+                        {{ meses[inicio_sem.month] }} {{ inicio_sem.year }}
+                    </small>
+                </div>
+                <a href="{{ url_for('escalas', semana=semana_proxima, loja=loja_id) }}" class="btn btn-outline-primary btn-sm">
+                    Próxima Semana<i class="bi bi-chevron-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros e Ações -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex gap-2 align-items-center">
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <input type="hidden" name="semana" value="{{ inicio_sem.isoformat() }}">
+                <select name="loja" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                    <option value="">Todas as Lojas</option>
+                    {% for l in lojas %}
+                    <option value="{{ l.id }}" {{ 'selected' if loja_id == l.id }}>{{ l.nome }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <a href="{{ url_for('escalas', loja=loja_id) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-calendar-today me-1"></i>Semana Atual
+            </a>
+        </div>
+
+        <div class="d-flex gap-2">
+            {% if tem_semana_anterior %}
+            <form method="post" action="{{ url_for('copiar_semana_escalas') }}" class="d-inline">
+                <input type="hidden" name="inicio_sem" value="{{ inicio_sem.isoformat() }}">
+                <button type="submit" class="btn btn-outline-info btn-sm"
+                        onclick="return confirm('Copiar escala da semana anterior para esta semana?\nDados existentes serão sobrescritos.')">
+                    <i class="bi bi-clipboard me-1"></i>Copiar Semana Anterior
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Grade da Escala -->
+    <form method="post" action="{{ url_for('salvar_escalas') }}">
+        <input type="hidden" name="inicio_sem" value="{{ inicio_sem.isoformat() }}">
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover mb-0 align-middle" style="font-size: 0.85rem;">
+                        <thead class="table-primary">
+                            <tr>
+                                <th class="text-center" style="min-width: 140px; position: sticky; left: 0; z-index: 2; background: inherit;">
+                                    Colaborador
+                                </th>
+                                {% for dia in dias_semana %}
+                                <th class="text-center" style="min-width: 120px;">
+                                    <div class="fw-bold {{ 'text-danger' if dia.data.weekday() >= 5 }}">
+                                        {{ dia.dia_nome }}
+                                    </div>
+                                    <small class="text-muted">{{ dia.dia_num }}</small>
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in colaboradores %}
+                            <tr>
+                                <td class="fw-semibold" style="position: sticky; left: 0; z-index: 1; background: #fff;">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-person-fill text-primary me-1"></i>
+                                        <span>{{ c.nome.split()[0] }} {{ c.nome.split()[1][:1] + '.' if c.nome.split()|length > 1 else '' }}</span>
+                                    </div>
+                                    <small class="text-muted d-block">{{ c.cargo }}</small>
+                                </td>
+                                {% for dia in dias_semana %}
+                                {% set esc = escalas_map.get(c.id, {}).get(dia.data_iso, {}) %}
+                                {% set is_folga = esc.get('folga', 0) %}
+                                <td class="p-1 {{ 'table-secondary' if is_folga }}">
+                                    <div class="d-flex flex-column gap-1">
+                                        <!-- Folga checkbox -->
+                                        <div class="form-check form-check-inline mb-0">
+                                            <input class="form-check-input escala-folga" type="checkbox"
+                                                   name="folga_{{ c.id }}_{{ dia.data_iso }}" value="1"
+                                                   {{ 'checked' if is_folga }}
+                                                   data-colab="{{ c.id }}" data-dia="{{ dia.data_iso }}">
+                                            <label class="form-check-label" style="font-size: 0.75rem;">Folga</label>
+                                        </div>
+                                        <!-- Horários -->
+                                        <div class="horarios-container {{ 'd-none' if is_folga }}"
+                                             id="horarios_{{ c.id }}_{{ dia.data_iso }}">
+                                            <div class="input-group input-group-sm mb-1">
+                                                <span class="input-group-text p-1" style="font-size: 0.7rem;">E</span>
+                                                <input type="time" class="form-control form-control-sm p-1"
+                                                       name="entrada_{{ c.id }}_{{ dia.data_iso }}"
+                                                       value="{{ esc.get('horario_entrada', '') }}"
+                                                       style="font-size: 0.8rem;">
+                                            </div>
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text p-1" style="font-size: 0.7rem;">S</span>
+                                                <input type="time" class="form-control form-control-sm p-1"
+                                                       name="saida_{{ c.id }}_{{ dia.data_iso }}"
+                                                       value="{{ esc.get('horario_saida', '') }}"
+                                                       style="font-size: 0.8rem;">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    Nenhum colaborador encontrado.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if colaboradores %}
+        <div class="d-flex justify-content-end mt-3 gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg me-1"></i>Salvar Escala
+            </button>
+        </div>
+        {% endif %}
+    </form>
+
+    <!-- Legenda -->
+    <div class="card shadow-sm border-0 mt-3">
+        <div class="card-body py-2">
+            <div class="d-flex flex-wrap gap-3 align-items-center">
+                <small class="text-muted"><strong>Legenda:</strong></small>
+                <small><span class="badge bg-secondary">Folga</span> Dia de folga</small>
+                <small><span class="badge bg-primary bg-opacity-10 text-primary">E</span> Horário de entrada previsto</small>
+                <small><span class="badge bg-primary bg-opacity-10 text-primary">S</span> Horário de saída previsto</small>
+                <small class="text-muted">| O horário de entrada da escala é usado para calcular atrasos automaticamente</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo da Semana -->
+    {% if colaboradores and escalas_map %}
+    <div class="card shadow-sm border-0 mt-3">
+        <div class="card-header bg-white border-bottom">
+            <h6 class="card-title mb-0">
+                <i class="bi bi-bar-chart me-2 text-primary"></i>Resumo da Semana
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Colaborador</th>
+                            <th class="text-center">Dias Escalados</th>
+                            <th class="text-center">Folgas</th>
+                            <th class="text-center">Horas Previstas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in colaboradores %}
+                        {% set esc_colab = escalas_map.get(c.id, {}) %}
+                        {% if esc_colab %}
+                        {% set dias_esc = 0 %}
+                        {% set folgas = 0 %}
+                        {% set horas_prev = 0 %}
+                        {% for d_iso, e in esc_colab.items() %}
+                            {% if e.get('folga', 0) %}
+                                {% set folgas = folgas + 1 %}
+                            {% else %}
+                                {% if e.get('horario_entrada') and e.get('horario_saida') %}
+                                    {% set dias_esc = dias_esc + 1 %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        <tr>
+                            <td>{{ c.nome }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ dias_esc }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary">{{ folgas }}</span>
+                            </td>
+                            <td class="text-center text-muted">—</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Toggle folga: esconder/mostrar campos de horário
+document.querySelectorAll('.escala-folga').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        var colab = this.dataset.colab;
+        var dia = this.dataset.dia;
+        var container = document.getElementById('horarios_' + colab + '_' + dia);
+        var cell = this.closest('td');
+
+        if (this.checked) {
+            container.classList.add('d-none');
+            cell.classList.add('table-secondary');
+            // Limpar campos de horário quando marcar folga
+            container.querySelectorAll('input[type="time"]').forEach(function(inp) {
+                inp.value = '';
+            });
+        } else {
+            container.classList.remove('d-none');
+            cell.classList.remove('table-secondary');
+        }
+    });
+});
+
+// Atalho: preencher horário rapidamente
+// Double-click em célula vazia para preencher horário padrão
+document.querySelectorAll('.horarios-container').forEach(function(container) {
+    container.addEventListener('dblclick', function(e) {
+        if (e.target.tagName === 'DIV' || e.target.tagName === 'SPAN') {
+            var inputs = container.querySelectorAll('input[type="time"]');
+            if (!inputs[0].value && !inputs[1].value) {
+                inputs[0].value = '10:00';
+                inputs[1].value = '19:00';
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -76,10 +76,13 @@
                                 </th>
                                 {% for dia in dias_semana %}
                                 <th class="text-center" style="min-width: 120px;">
-                                    <div class="fw-bold {{ 'text-danger' if dia.data.weekday() >= 5 }}">
+                                    <div class="fw-bold {{ 'text-danger' if dia.weekday == 6 or dia.eh_feriado }}">
                                         {{ dia.dia_nome }}
                                     </div>
                                     <small class="text-muted">{{ dia.dia_num }}</small>
+                                    {% if dia.eh_feriado %}
+                                    <div><span class="badge bg-danger" style="font-size: 0.6rem;">{{ dia.nome_feriado }}</span></div>
+                                    {% endif %}
                                 </th>
                                 {% endfor %}
                             </tr>
@@ -97,15 +100,25 @@
                                 {% for dia in dias_semana %}
                                 {% set esc = escalas_map.get(c.id, {}).get(dia.data_iso, {}) %}
                                 {% set is_folga = esc.get('folga', 0) %}
-                                <td class="p-1 {{ 'table-secondary' if is_folga }}">
+                                <td class="p-1 {{ 'table-secondary' if is_folga }} {{ 'table-warning table-active' if dia.eh_feriado or dia.weekday == 6 }}" data-weekday="{{ dia.weekday }}" data-feriado="{{ '1' if dia.eh_feriado else '0' }}">
                                     <div class="d-flex flex-column gap-1">
-                                        <!-- Folga checkbox -->
-                                        <div class="form-check form-check-inline mb-0">
-                                            <input class="form-check-input escala-folga" type="checkbox"
-                                                   name="folga_{{ c.id }}_{{ dia.data_iso }}" value="1"
-                                                   {{ 'checked' if is_folga }}
-                                                   data-colab="{{ c.id }}" data-dia="{{ dia.data_iso }}">
-                                            <label class="form-check-label" style="font-size: 0.75rem;">Folga</label>
+                                        <!-- Folga checkbox + Replicar -->
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div class="form-check form-check-inline mb-0">
+                                                <input class="form-check-input escala-folga" type="checkbox"
+                                                       name="folga_{{ c.id }}_{{ dia.data_iso }}" value="1"
+                                                       {{ 'checked' if is_folga }}
+                                                       data-colab="{{ c.id }}" data-dia="{{ dia.data_iso }}">
+                                                <label class="form-check-label" style="font-size: 0.75rem;">Folga</label>
+                                            </div>
+                                            {% if dia.data_iso == primeiro_dia_util %}
+                                            <button type="button" class="btn btn-outline-primary btn-sm py-0 px-1 btn-replicar"
+                                                    data-colab="{{ c.id }}" data-dia="{{ dia.data_iso }}"
+                                                    title="Replicar horário para os demais dias úteis"
+                                                    style="font-size: 0.65rem; line-height: 1.2;">
+                                                <i class="bi bi-arrow-repeat"></i> Replicar
+                                            </button>
+                                            {% endif %}
                                         </div>
                                         <!-- Horários -->
                                         <div class="horarios-container {{ 'd-none' if is_folga }}"
@@ -155,11 +168,10 @@
     <div class="card shadow-sm border-0 mt-3">
         <div class="card-body py-2">
             <div class="d-flex flex-wrap gap-3 align-items-center">
-                <small class="text-muted"><strong>Legenda:</strong></small>
-                <small><span class="badge bg-secondary">Folga</span> Dia de folga</small>
-                <small><span class="badge bg-primary bg-opacity-10 text-primary">E</span> Horário de entrada previsto</small>
-                <small><span class="badge bg-primary bg-opacity-10 text-primary">S</span> Horário de saída previsto</small>
-                <small class="text-muted">| O horário de entrada da escala é usado para calcular atrasos automaticamente</small>
+                <small class="text-muted"><strong>Dicas:</strong></small>
+                <small><button class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size: 0.6rem;" disabled><i class="bi bi-arrow-repeat"></i> Replicar</button> Copia horário do 1° dia útil para Ter-Sáb (feriados e domingos recebem 14:00-20:00)</small>
+                <small><span class="badge bg-secondary">Folga</span> Marca dia de folga</small>
+                <small class="text-muted">| Double-click preenche horário padrão (10-19h ou 14-20h em feriado/domingo)</small>
             </div>
         </div>
     </div>
@@ -222,6 +234,11 @@
 
 {% block scripts %}
 <script>
+// Dados do servidor
+var diasSemana = {{ dias_semana | tojson }};
+var feriadosSemana = {{ feriados_semana | tojson }};
+var primeiroDiaUtil = '{{ primeiro_dia_util }}';
+
 // Toggle folga: esconder/mostrar campos de horário
 document.querySelectorAll('.escala-folga').forEach(function(cb) {
     cb.addEventListener('change', function() {
@@ -233,7 +250,6 @@ document.querySelectorAll('.escala-folga').forEach(function(cb) {
         if (this.checked) {
             container.classList.add('d-none');
             cell.classList.add('table-secondary');
-            // Limpar campos de horário quando marcar folga
             container.querySelectorAll('input[type="time"]').forEach(function(inp) {
                 inp.value = '';
             });
@@ -244,6 +260,76 @@ document.querySelectorAll('.escala-folga').forEach(function(cb) {
     });
 });
 
+// Botão Replicar: copiar horário do primeiro dia útil para os demais dias úteis (não feriado, não domingo)
+document.querySelectorAll('.btn-replicar').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var colab = this.dataset.colab;
+        var diaOrigem = this.dataset.dia;
+
+        // Pegar horários do dia de origem
+        var entradaOrigem = document.querySelector('input[name="entrada_' + colab + '_' + diaOrigem + '"]');
+        var saidaOrigem = document.querySelector('input[name="saida_' + colab + '_' + diaOrigem + '"]');
+
+        if (!entradaOrigem || !entradaOrigem.value || !saidaOrigem || !saidaOrigem.value) {
+            alert('Preencha os horários de ' + diaOrigem.substring(8,10) + '/' + diaOrigem.substring(5,7) + ' antes de replicar.');
+            return;
+        }
+
+        var valEntrada = entradaOrigem.value;
+        var valSaida = saidaOrigem.value;
+        var count = 0;
+
+        // Percorrer todos os dias da semana
+        diasSemana.forEach(function(dia) {
+            if (dia.data_iso === diaOrigem) return; // pular o próprio dia de origem
+            if (dia.weekday === 6) return; // pular domingo
+            if (feriadosSemana.indexOf(dia.data_iso) >= 0) return; // pular feriados
+
+            // Desmarcar folga se marcada
+            var folgaCb = document.querySelector('input[name="folga_' + colab + '_' + dia.data_iso + '"]');
+            if (folgaCb && folgaCb.checked) {
+                folgaCb.checked = false;
+                folgaCb.dispatchEvent(new Event('change'));
+            }
+
+            // Preencher horários
+            var entrada = document.querySelector('input[name="entrada_' + colab + '_' + dia.data_iso + '"]');
+            var saida = document.querySelector('input[name="saida_' + colab + '_' + dia.data_iso + '"]');
+            if (entrada) entrada.value = valEntrada;
+            if (saida) saida.value = valSaida;
+
+            // Mostrar container de horários
+            var container = document.getElementById('horarios_' + colab + '_' + dia.data_iso);
+            if (container) container.classList.remove('d-none');
+
+            count++;
+        });
+
+        // Agora preencher domingos e feriados com 14:00-20:00
+        diasSemana.forEach(function(dia) {
+            if (dia.data_iso === diaOrigem) return;
+            if (dia.weekday !== 6 && feriadosSemana.indexOf(dia.data_iso) < 0) return;
+
+            // Desmarcar folga se marcada
+            var folgaCb = document.querySelector('input[name="folga_' + colab + '_' + dia.data_iso + '"]');
+            if (folgaCb && folgaCb.checked) {
+                folgaCb.checked = false;
+                folgaCb.dispatchEvent(new Event('change'));
+            }
+
+            var entrada = document.querySelector('input[name="entrada_' + colab + '_' + dia.data_iso + '"]');
+            var saida = document.querySelector('input[name="saida_' + colab + '_' + dia.data_iso + '"]');
+            if (entrada) entrada.value = '14:00';
+            if (saida) saida.value = '20:00';
+
+            var container = document.getElementById('horarios_' + colab + '_' + dia.data_iso);
+            if (container) container.classList.remove('d-none');
+        });
+
+        alert('Horários replicados! (' + count + ' dias úteis + domingos/feriados com 14:00-20:00)');
+    });
+});
+
 // Atalho: preencher horário rapidamente
 // Double-click em célula vazia para preencher horário padrão
 document.querySelectorAll('.horarios-container').forEach(function(container) {
@@ -251,8 +337,17 @@ document.querySelectorAll('.horarios-container').forEach(function(container) {
         if (e.target.tagName === 'DIV' || e.target.tagName === 'SPAN') {
             var inputs = container.querySelectorAll('input[type="time"]');
             if (!inputs[0].value && !inputs[1].value) {
-                inputs[0].value = '10:00';
-                inputs[1].value = '19:00';
+                // Verificar se é domingo ou feriado pela célula pai
+                var cell = container.closest('td');
+                var weekday = parseInt(cell.dataset.weekday || '-1');
+                var isFeriado = cell.dataset.feriado === '1';
+                if (weekday === 6 || isFeriado) {
+                    inputs[0].value = '14:00';
+                    inputs[1].value = '20:00';
+                } else {
+                    inputs[0].value = '10:00';
+                    inputs[1].value = '19:00';
+                }
             }
         }
     });

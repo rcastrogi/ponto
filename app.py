@@ -2134,13 +2134,20 @@ def escalas():
 
     # Dias da semana (seg-dom)
     dias_semana = []
+    feriados_semana = set()
     for i in range(7):
         d = inicio_sem + timedelta(days=i)
+        eh_feriado = is_feriado(d, db)
+        if eh_feriado:
+            feriados_semana.add(d.isoformat())
         dias_semana.append({
             'data': d,
             'data_iso': d.isoformat(),
             'dia_nome': DIAS_SEMANA_CURTO[i],
             'dia_num': d.strftime('%d/%m'),
+            'eh_feriado': bool(eh_feriado),
+            'nome_feriado': eh_feriado or '',
+            'weekday': d.weekday(),  # 0=seg, 6=dom
         })
 
     # Colaboradores ativos (não gestores)
@@ -2181,6 +2188,13 @@ def escalas():
         (sem_ant_inicio.isoformat(), sem_ant_fim.isoformat())
     ).fetchone()['cnt'] > 0
 
+    # Determinar primeiro dia útil da semana (não feriado, não domingo)
+    primeiro_dia_util = ''
+    for dia in dias_semana:
+        if dia['weekday'] != 6 and not dia['eh_feriado']:  # não domingo, não feriado
+            primeiro_dia_util = dia['data_iso']
+            break
+
     db.close()
 
     return render_template('escalas.html',
@@ -2193,7 +2207,9 @@ def escalas():
                            semana_proxima=semana_proxima,
                            tem_semana_anterior=tem_semana_anterior,
                            lojas=lojas,
-                           loja_id=loja_id)
+                           loja_id=loja_id,
+                           feriados_semana=list(feriados_semana),
+                           primeiro_dia_util=primeiro_dia_util)
 
 
 @app.route('/escalas/salvar', methods=['POST'])

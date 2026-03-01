@@ -443,6 +443,35 @@ def meu_ponto():
         (user_id, inicio_sem.isoformat(), fim_sem.isoformat())
     ).fetchall()
 
+    # Escalas do mês inteiro (visão mensal)
+    inicio_mes_dt, fim_mes_dt = get_mes_inicio_fim(hoje_dt)
+    escalas_mes = db.execute(
+        'SELECT * FROM escalas WHERE colaborador_id = ? AND data BETWEEN ? AND ? ORDER BY data',
+        (user_id, inicio_mes_dt.isoformat(), fim_mes_dt.isoformat())
+    ).fetchall()
+    escalas_mes_map = {e['data']: e for e in escalas_mes}
+
+    # Gerar calendário do mês (lista de semanas com dias)
+    import calendar as cal_mod
+    primeiro_dia_mes = inicio_mes_dt
+    ultimo_dia_mes = fim_mes_dt
+    # Começar do início da semana do primeiro dia do mês
+    cal_inicio = primeiro_dia_mes - timedelta(days=primeiro_dia_mes.weekday())
+    # Terminar no fim da semana do último dia do mês
+    cal_fim = ultimo_dia_mes + timedelta(days=(6 - ultimo_dia_mes.weekday()))
+    calendario_semanas = []
+    d = cal_inicio
+    while d <= cal_fim:
+        semana = []
+        for _ in range(7):
+            semana.append(d)
+            d += timedelta(days=1)
+        calendario_semanas.append(semana)
+
+    meses_pt = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    nome_mes_atual = f"{meses_pt[hoje_dt.month]} {hoje_dt.year}"
+
     db.close()
 
     return render_template('meu_ponto.html',
@@ -465,6 +494,11 @@ def meu_ponto():
                            total_atraso_mes=total_atraso_mes,
                            escala_hoje=escala_hoje,
                            escalas_semana=escalas_semana,
+                           escalas_mes_map=escalas_mes_map,
+                           calendario_semanas=calendario_semanas,
+                           nome_mes_atual=nome_mes_atual,
+                           inicio_mes_dt=inicio_mes_dt,
+                           fim_mes_dt=fim_mes_dt,
                            justificativas=justificativas)
 
 

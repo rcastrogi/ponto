@@ -348,54 +348,91 @@
         </div>
     </div>
 
-    <!-- Minha Escala da Semana -->
-    {% if escalas_semana %}
+    <!-- Minha Escala do Mês -->
+    {% if escalas_mes_map %}
     <div class="card shadow-sm border-0 mt-4">
-        <div class="card-header bg-white border-bottom">
+        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0">
-                <i class="bi bi-calendar2-week me-2 text-primary"></i>Minha Escala da Semana
+                <i class="bi bi-calendar2-month me-2 text-primary"></i>Minha Escala — {{ nome_mes_atual }}
             </h5>
+            {% set total_escalados = [] %}
+            {% set total_folgas = [] %}
+            {% for d_iso, e in escalas_mes_map.items() %}
+                {% if e.folga %}
+                    {% if total_folgas.append(1) %}{% endif %}
+                {% else %}
+                    {% if total_escalados.append(1) %}{% endif %}
+                {% endif %}
+            {% endfor %}
+            <div>
+                <span class="badge bg-success">{{ total_escalados|length }} dia(s) escalado(s)</span>
+                <span class="badge bg-secondary">{{ total_folgas|length }} folga(s)</span>
+            </div>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-2">
             <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0">
-                    <thead class="table-light">
+                <table class="table table-bordered table-sm mb-0 text-center" style="font-size: 0.82rem;">
+                    <thead class="table-primary">
                         <tr>
-                            <th>Dia</th>
-                            <th class="text-center">Entrada</th>
-                            <th class="text-center">Saída</th>
-                            <th class="text-center">Status</th>
+                            <th style="width: 14.28%;">Seg</th>
+                            <th style="width: 14.28%;">Ter</th>
+                            <th style="width: 14.28%;">Qua</th>
+                            <th style="width: 14.28%;">Qui</th>
+                            <th style="width: 14.28%;">Sex</th>
+                            <th style="width: 14.28%;" class="text-danger">Sáb</th>
+                            <th style="width: 14.28%;" class="text-danger">Dom</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% set dias_pt = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] %}
-                        {% for e in escalas_semana %}
-                        {% set d = e.data %}
-                        {% set dia_idx = (d|int - 1) if d|int > 0 else 0 %}
-                        <tr class="{{ 'table-secondary' if e.folga else ('table-primary table-active' if d == today.isoformat() else '') }}">
-                            <td>
-                                <strong>{{ d[8:10] }}/{{ d[5:7] }}</strong>
-                                {% if d == today.isoformat() %}
-                                <span class="badge bg-primary ms-1">Hoje</span>
+                        {% for semana in calendario_semanas %}
+                        <tr>
+                            {% for dia in semana %}
+                            {% set d_iso = dia.isoformat() %}
+                            {% set esc = escalas_mes_map.get(d_iso) %}
+                            {% set fora_mes = dia.month != inicio_mes_dt.month %}
+                            {% set eh_hoje = d_iso == today.isoformat() %}
+                            <td class="p-1 align-top {{ 'text-muted bg-light bg-opacity-50' if fora_mes }} {{ 'border border-primary border-2' if eh_hoje }}"
+                                style="min-height: 60px; {{ 'background-color: #e8f5e9 !important;' if esc and not esc.folga and not fora_mes }} {{ 'background-color: #f5f5f5 !important;' if esc and esc.folga and not fora_mes }}">
+                                <div class="fw-bold {{ 'text-primary' if eh_hoje }}">
+                                    {{ dia.day }}
+                                    {% if eh_hoje %}<span class="badge bg-primary" style="font-size: 0.6rem;">HOJE</span>{% endif %}
+                                </div>
+                                {% if esc and not fora_mes %}
+                                    {% if esc.folga %}
+                                    <div class="mt-1">
+                                        <span class="badge bg-secondary" style="font-size: 0.7rem;">
+                                            <i class="bi bi-moon-fill me-1"></i>Folga
+                                        </span>
+                                    </div>
+                                    {% else %}
+                                    <div class="mt-1" style="line-height: 1.3;">
+                                        <span class="text-success fw-semibold" style="font-size: 0.75rem;">
+                                            {{ esc.horario_entrada }}
+                                        </span>
+                                        <br>
+                                        <span class="text-danger fw-semibold" style="font-size: 0.75rem;">
+                                            {{ esc.horario_saida }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                {% elif not fora_mes %}
+                                <div class="mt-1">
+                                    <small class="text-muted" style="font-size: 0.65rem;">—</small>
+                                </div>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
-                                {% if e.folga %}—{% else %}{{ e.horario_entrada or '-' }}{% endif %}
-                            </td>
-                            <td class="text-center">
-                                {% if e.folga %}—{% else %}{{ e.horario_saida or '-' }}{% endif %}
-                            </td>
-                            <td class="text-center">
-                                {% if e.folga %}
-                                <span class="badge bg-secondary"><i class="bi bi-moon me-1"></i>Folga</span>
-                                {% else %}
-                                <span class="badge bg-success bg-opacity-75"><i class="bi bi-check me-1"></i>Escalado</span>
-                                {% endif %}
-                            </td>
+                            {% endfor %}
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+            <div class="mt-2 d-flex gap-3 justify-content-center">
+                <small><span class="d-inline-block rounded" style="width: 12px; height: 12px; background: #e8f5e9; border: 1px solid #ccc;"></span> Escalado</small>
+                <small><span class="d-inline-block rounded" style="width: 12px; height: 12px; background: #f5f5f5; border: 1px solid #ccc;"></span> Folga</small>
+                <small><span class="d-inline-block rounded border border-primary border-2" style="width: 12px; height: 12px;"></span> Hoje</small>
+                <small class="text-success">&#9650; Entrada</small>
+                <small class="text-danger">&#9660; Saída</small>
             </div>
         </div>
     </div>

@@ -147,18 +147,12 @@ def calcular_horas_extras_semana(horas_semana, max_horas_semana=40.0):
 
 
 def get_semana_inicio_fim(d):
-    """Retorna segunda e domingo da semana de uma data."""
-    inicio = d - timedelta(days=d.weekday())
+    """Retorna domingo e sábado da semana de uma data (convenção brasileira)."""
+    # weekday(): 0=seg..6=dom. Offset para chegar ao domingo anterior (ou o próprio dia se já for domingo)
+    offset = (d.weekday() + 1) % 7
+    inicio = d - timedelta(days=offset)
     fim = inicio + timedelta(days=6)
     return inicio, fim
-
-
-def get_semana_display(d):
-    """Retorna domingo e sábado da semana de exibição (convenção brasileira)."""
-    inicio_seg = d - timedelta(days=d.weekday())
-    domingo = inicio_seg - timedelta(days=1)
-    sabado = domingo + timedelta(days=6)
-    return domingo, sabado
 
 
 def get_mes_inicio_fim(d):
@@ -675,7 +669,6 @@ def dashboard():
     db = get_db()
     hoje_iso = hoje().isoformat()
     inicio_sem, fim_sem = get_semana_inicio_fim(hoje())
-    display_inicio_sem, display_fim_sem = get_semana_display(hoje())
     inicio_mes, fim_mes = get_mes_inicio_fim(hoje())
 
     # Todos os colaboradores ativos
@@ -876,8 +869,8 @@ def dashboard():
                            horas_justificadas_mensal=horas_justificadas_mensal,
                            justificativas_pendentes=justificativas_pendentes,
                            ausentes=ausentes,
-                           inicio_sem=display_inicio_sem,
-                           fim_sem=display_fim_sem,
+                           inicio_sem=inicio_sem,
+                           fim_sem=fim_sem,
                            inicio_mes=inicio_mes,
                            fim_mes=fim_mes,
                            chart_evolucao_labels=chart_evolucao_labels,
@@ -939,8 +932,7 @@ def relatorio_colaborador(colab_id):
     for r in registros:
         d = date.fromisoformat(r['data'])
         sem_inicio, sem_fim = get_semana_inicio_fim(d)
-        disp_inicio, disp_fim = get_semana_display(d)
-        chave = f"{disp_inicio.strftime('%d/%m/%Y')} a {disp_fim.strftime('%d/%m/%Y')}"
+        chave = f"{sem_inicio.strftime('%d/%m/%Y')} a {sem_fim.strftime('%d/%m/%Y')}"
         if chave not in semanas:
             semanas[chave] = {'registros': [], 'total_horas': 0, 'horas_extras': 0,
                               'horas_justificadas': 0,
@@ -2139,19 +2131,15 @@ def escalas():
 
     inicio_sem, fim_sem = get_semana_inicio_fim(data_ref)
 
-    # Semana de exibição: Dom-Sáb
-    domingo = inicio_sem - timedelta(days=1)
-    sabado = domingo + timedelta(days=6)
-
     # Navegação entre semanas (pula 7 dias)
     semana_anterior = (inicio_sem - timedelta(days=7)).isoformat()
     semana_proxima = (inicio_sem + timedelta(days=7)).isoformat()
 
-    # Dias da semana para exibição: Dom + Seg..Sáb
+    # Dias da semana: Dom a Sáb
     dias_semana = []
     feriados_semana = set()
     for i in range(7):
-        d = domingo + timedelta(days=i)
+        d = inicio_sem + timedelta(days=i)
         eh_feriado = is_feriado(d, db)
         if eh_feriado:
             feriados_semana.add(d.isoformat())
@@ -2187,7 +2175,7 @@ def escalas():
             f'''SELECT * FROM escalas
                 WHERE colaborador_id IN ({ids_in})
                 AND data BETWEEN ? AND ?''',
-            (domingo.isoformat(), sabado.isoformat())
+            (inicio_sem.isoformat(), fim_sem.isoformat())
         ).fetchall()
         for e in escalas_rows:
             cid = e['colaborador_id']
@@ -2196,12 +2184,11 @@ def escalas():
             escalas_map[cid][e['data']] = dict(e)
 
     # Verificar se semana anterior tem escalas (para botão copiar)
-    # Semana de exibição = Dom..Sáb, anterior = 7 dias antes
-    display_dom_ant = domingo - timedelta(days=7)
-    display_sab_ant = display_dom_ant + timedelta(days=6)
+    sem_ant_inicio = inicio_sem - timedelta(days=7)
+    sem_ant_fim = sem_ant_inicio + timedelta(days=6)
     tem_semana_anterior = db.execute(
         'SELECT COUNT(*) as cnt FROM escalas WHERE data BETWEEN ? AND ?',
-        (display_dom_ant.isoformat(), display_sab_ant.isoformat())
+        (sem_ant_inicio.isoformat(), sem_ant_fim.isoformat())
     ).fetchone()['cnt'] > 0
 
     # Determinar primeiro dia útil da semana (não feriado, não domingo)
@@ -2219,8 +2206,6 @@ def escalas():
                            escalas_map=escalas_map,
                            inicio_sem=inicio_sem,
                            fim_sem=fim_sem,
-                           display_inicio=domingo,
-                           display_fim=sabado,
                            semana_anterior=semana_anterior,
                            semana_proxima=semana_proxima,
                            tem_semana_anterior=tem_semana_anterior,
@@ -2242,12 +2227,12 @@ def salvar_escalas():
     ).fetchall()
 
     count = 0
-    # Semana de exibição: Dom a Sáb (inicio_sem é segunda, display começa no domingo anterior)
-    display_domingo = date.fromisoformat(inicio_sem) - timedelta(days=1)
+    # inicio_sem agora é domingo (início da semana Dom-Sáb)
+    dom = date.fromisoformat(inicio_sem)
     for c in colaboradores:
         cid = c['id']
         for i in range(7):
-            d = display_domingo + timedelta(days=i)
+            d = dom + timedelta(days=i)
             d_iso = d.isoformat()
 
             entrada = dados.get(f'entrada_{cid}_{d_iso}', '').strip()
@@ -2293,8 +2278,8 @@ def copiar_semana_escalas():
         db.close()
         return redirect(url_for('escalas'))
 
-    # Semana de exibição = Dom a Sáb (dt_destino é segunda)
-    dom_destino = dt_destino - timedelta(days=1)
+    # Semana = Dom a Sáb (dt_destino já é domingo)
+    dom_destino = dt_destino
     dom_origem = dom_destino - timedelta(days=7)
     sab_origem = dom_origem + timedelta(days=6)
 

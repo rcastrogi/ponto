@@ -16,11 +16,11 @@
                 </a>
                 <div class="text-center">
                     <h5 class="mb-0 fw-bold text-primary">
-                        {{ inicio_sem.strftime('%d/%m/%Y') }} — {{ fim_sem.strftime('%d/%m/%Y') }}
+                        {{ display_inicio.strftime('%d/%m/%Y') }} — {{ display_fim.strftime('%d/%m/%Y') }}
                     </h5>
                     <small class="text-muted">
                         {% set meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'] %}
-                        {{ meses[inicio_sem.month] }} {{ inicio_sem.year }}
+                        {{ meses[display_inicio.month] }} {{ display_inicio.year }}
                     </small>
                 </div>
                 <a href="{{ url_for('escalas', semana=semana_proxima, loja=loja_id) }}" class="btn btn-outline-primary btn-sm">

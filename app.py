@@ -153,6 +153,14 @@ def get_semana_inicio_fim(d):
     return inicio, fim
 
 
+def get_semana_display(d):
+    """Retorna domingo e sábado da semana de exibição (convenção brasileira)."""
+    inicio_seg = d - timedelta(days=d.weekday())
+    domingo = inicio_seg - timedelta(days=1)
+    sabado = domingo + timedelta(days=6)
+    return domingo, sabado
+
+
 def get_mes_inicio_fim(d):
     """Retorna primeiro e último dia do mês."""
     inicio = d.replace(day=1)
@@ -667,6 +675,7 @@ def dashboard():
     db = get_db()
     hoje_iso = hoje().isoformat()
     inicio_sem, fim_sem = get_semana_inicio_fim(hoje())
+    display_inicio_sem, display_fim_sem = get_semana_display(hoje())
     inicio_mes, fim_mes = get_mes_inicio_fim(hoje())
 
     # Todos os colaboradores ativos
@@ -867,8 +876,8 @@ def dashboard():
                            horas_justificadas_mensal=horas_justificadas_mensal,
                            justificativas_pendentes=justificativas_pendentes,
                            ausentes=ausentes,
-                           inicio_sem=inicio_sem,
-                           fim_sem=fim_sem,
+                           inicio_sem=display_inicio_sem,
+                           fim_sem=display_fim_sem,
                            inicio_mes=inicio_mes,
                            fim_mes=fim_mes,
                            chart_evolucao_labels=chart_evolucao_labels,
@@ -930,7 +939,8 @@ def relatorio_colaborador(colab_id):
     for r in registros:
         d = date.fromisoformat(r['data'])
         sem_inicio, sem_fim = get_semana_inicio_fim(d)
-        chave = f"{sem_inicio.isoformat()} a {sem_fim.isoformat()}"
+        disp_inicio, disp_fim = get_semana_display(d)
+        chave = f"{disp_inicio.strftime('%d/%m/%Y')} a {disp_fim.strftime('%d/%m/%Y')}"
         if chave not in semanas:
             semanas[chave] = {'registros': [], 'total_horas': 0, 'horas_extras': 0,
                               'horas_justificadas': 0,
@@ -2129,13 +2139,15 @@ def escalas():
 
     inicio_sem, fim_sem = get_semana_inicio_fim(data_ref)
 
-    # Navegação entre semanas
+    # Semana de exibição: Dom-Sáb
+    domingo = inicio_sem - timedelta(days=1)
+    sabado = domingo + timedelta(days=6)
+
+    # Navegação entre semanas (pula 7 dias)
     semana_anterior = (inicio_sem - timedelta(days=7)).isoformat()
     semana_proxima = (inicio_sem + timedelta(days=7)).isoformat()
 
-    # Dias da semana para exibição: Dom(anterior) + Seg..Sáb
-    # inicio_sem é segunda-feira; o domingo da semana de exibição é o dia anterior
-    domingo = inicio_sem - timedelta(days=1)
+    # Dias da semana para exibição: Dom + Seg..Sáb
     dias_semana = []
     feriados_semana = set()
     for i in range(7):
@@ -2167,7 +2179,7 @@ def escalas():
     else:
         loja_id = ''
 
-    # Carregar escalas existentes para esta semana
+    # Carregar escalas existentes para esta semana (Dom-Sáb)
     escalas_map = {}  # {colaborador_id: {data_iso: escala_row}}
     if colaboradores:
         ids_in = ','.join([str(c['id']) for c in colaboradores])
@@ -2175,7 +2187,7 @@ def escalas():
             f'''SELECT * FROM escalas
                 WHERE colaborador_id IN ({ids_in})
                 AND data BETWEEN ? AND ?''',
-            (inicio_sem.isoformat(), fim_sem.isoformat())
+            (domingo.isoformat(), sabado.isoformat())
         ).fetchall()
         for e in escalas_rows:
             cid = e['colaborador_id']
@@ -2207,6 +2219,8 @@ def escalas():
                            escalas_map=escalas_map,
                            inicio_sem=inicio_sem,
                            fim_sem=fim_sem,
+                           display_inicio=domingo,
+                           display_fim=sabado,
                            semana_anterior=semana_anterior,
                            semana_proxima=semana_proxima,
                            tem_semana_anterior=tem_semana_anterior,

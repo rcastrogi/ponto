@@ -2133,25 +2133,25 @@ def escalas():
     semana_anterior = (inicio_sem - timedelta(days=7)).isoformat()
     semana_proxima = (inicio_sem + timedelta(days=7)).isoformat()
 
-    # Dias da semana (dom-sáb para exibição)
-    _dias_semana_raw = []
+    # Dias da semana para exibição: Dom(anterior) + Seg..Sáb
+    # inicio_sem é segunda-feira; o domingo da semana de exibição é o dia anterior
+    domingo = inicio_sem - timedelta(days=1)
+    dias_semana = []
     feriados_semana = set()
     for i in range(7):
-        d = inicio_sem + timedelta(days=i)
+        d = domingo + timedelta(days=i)
         eh_feriado = is_feriado(d, db)
         if eh_feriado:
             feriados_semana.add(d.isoformat())
-        _dias_semana_raw.append({
+        dias_semana.append({
             'data': d,
             'data_iso': d.isoformat(),
-            'dia_nome': DIAS_SEMANA_CURTO[i],
+            'dia_nome': DIAS_SEMANA_CURTO[d.weekday()],
             'dia_num': d.strftime('%d/%m'),
             'eh_feriado': bool(eh_feriado),
             'nome_feriado': eh_feriado or '',
             'weekday': d.weekday(),  # 0=seg, 6=dom
         })
-    # Reordenar: domingo (último) vai para primeiro
-    dias_semana = [_dias_semana_raw[6]] + _dias_semana_raw[0:6]
 
     # Colaboradores ativos (não gestores)
     colaboradores = db.execute(
@@ -2184,11 +2184,12 @@ def escalas():
             escalas_map[cid][e['data']] = dict(e)
 
     # Verificar se semana anterior tem escalas (para botão copiar)
-    sem_ant_inicio = inicio_sem - timedelta(days=7)
-    sem_ant_fim = sem_ant_inicio + timedelta(days=6)
+    # Semana de exibição = Dom..Sáb, anterior = 7 dias antes
+    display_dom_ant = domingo - timedelta(days=7)
+    display_sab_ant = display_dom_ant + timedelta(days=6)
     tem_semana_anterior = db.execute(
         'SELECT COUNT(*) as cnt FROM escalas WHERE data BETWEEN ? AND ?',
-        (sem_ant_inicio.isoformat(), sem_ant_fim.isoformat())
+        (display_dom_ant.isoformat(), display_sab_ant.isoformat())
     ).fetchone()['cnt'] > 0
 
     # Determinar primeiro dia útil da semana (não feriado, não domingo)
@@ -2227,10 +2228,12 @@ def salvar_escalas():
     ).fetchall()
 
     count = 0
+    # Semana de exibição: Dom a Sáb (inicio_sem é segunda, display começa no domingo anterior)
+    display_domingo = date.fromisoformat(inicio_sem) - timedelta(days=1)
     for c in colaboradores:
         cid = c['id']
         for i in range(7):
-            d = date.fromisoformat(inicio_sem) + timedelta(days=i)
+            d = display_domingo + timedelta(days=i)
             d_iso = d.isoformat()
 
             entrada = dados.get(f'entrada_{cid}_{d_iso}', '').strip()
@@ -2276,13 +2279,15 @@ def copiar_semana_escalas():
         db.close()
         return redirect(url_for('escalas'))
 
-    inicio_origem = dt_destino - timedelta(days=7)
-    fim_origem = inicio_origem + timedelta(days=6)
+    # Semana de exibição = Dom a Sáb (dt_destino é segunda)
+    dom_destino = dt_destino - timedelta(days=1)
+    dom_origem = dom_destino - timedelta(days=7)
+    sab_origem = dom_origem + timedelta(days=6)
 
-    # Carregar escalas da semana anterior
+    # Carregar escalas da semana anterior (Dom a Sáb)
     escalas_origem = db.execute(
         'SELECT * FROM escalas WHERE data BETWEEN ? AND ?',
-        (inicio_origem.isoformat(), fim_origem.isoformat())
+        (dom_origem.isoformat(), sab_origem.isoformat())
     ).fetchall()
 
     if not escalas_origem:
@@ -2292,10 +2297,10 @@ def copiar_semana_escalas():
 
     count = 0
     for e in escalas_origem:
-        # Calcular a data correspondente na semana destino
+        # Calcular a data correspondente na semana destino (mesmo dia da semana)
         d_origem = date.fromisoformat(e['data'])
-        diff_dias = (d_origem - inicio_origem).days
-        d_destino = dt_destino + timedelta(days=diff_dias)
+        diff_dias = (d_origem - dom_origem).days
+        d_destino = dom_destino + timedelta(days=diff_dias)
 
         db.execute(
             '''INSERT INTO escalas (colaborador_id, data, horario_entrada, horario_saida, folga, observacao)

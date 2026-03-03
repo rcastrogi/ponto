@@ -1,6 +1,5 @@
 import os
 import io
-import calendar
 from datetime import datetime, date, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
@@ -451,14 +450,16 @@ def meu_ponto():
     ).fetchall()
     escalas_mes_map = {e['data']: e for e in escalas_mes}
 
-    # Gerar calendário do mês (lista de semanas com dias)
-    import calendar as cal_mod
+    # Gerar calendário do mês (lista de semanas com dias — semana começa no domingo)
     primeiro_dia_mes = inicio_mes_dt
     ultimo_dia_mes = fim_mes_dt
-    # Começar do início da semana do primeiro dia do mês
-    cal_inicio = primeiro_dia_mes - timedelta(days=primeiro_dia_mes.weekday())
-    # Terminar no fim da semana do último dia do mês
-    cal_fim = ultimo_dia_mes + timedelta(days=(6 - ultimo_dia_mes.weekday()))
+    # Começar do domingo da semana do primeiro dia do mês
+    # weekday(): 0=seg..6=dom. Para achar o domingo anterior: (weekday + 1) % 7
+    offset_dom = (primeiro_dia_mes.weekday() + 1) % 7
+    cal_inicio = primeiro_dia_mes - timedelta(days=offset_dom)
+    # Terminar no sábado da semana do último dia do mês
+    offset_sab = (5 - ultimo_dia_mes.weekday()) % 7
+    cal_fim = ultimo_dia_mes + timedelta(days=offset_sab)
     calendario_semanas = []
     d = cal_inicio
     while d <= cal_fim:
@@ -2132,15 +2133,15 @@ def escalas():
     semana_anterior = (inicio_sem - timedelta(days=7)).isoformat()
     semana_proxima = (inicio_sem + timedelta(days=7)).isoformat()
 
-    # Dias da semana (seg-dom)
-    dias_semana = []
+    # Dias da semana (dom-sáb para exibição)
+    _dias_semana_raw = []
     feriados_semana = set()
     for i in range(7):
         d = inicio_sem + timedelta(days=i)
         eh_feriado = is_feriado(d, db)
         if eh_feriado:
             feriados_semana.add(d.isoformat())
-        dias_semana.append({
+        _dias_semana_raw.append({
             'data': d,
             'data_iso': d.isoformat(),
             'dia_nome': DIAS_SEMANA_CURTO[i],
@@ -2149,6 +2150,8 @@ def escalas():
             'nome_feriado': eh_feriado or '',
             'weekday': d.weekday(),  # 0=seg, 6=dom
         })
+    # Reordenar: domingo (último) vai para primeiro
+    dias_semana = [_dias_semana_raw[6]] + _dias_semana_raw[0:6]
 
     # Colaboradores ativos (não gestores)
     colaboradores = db.execute(

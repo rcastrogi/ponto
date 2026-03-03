@@ -172,6 +172,7 @@
                 <small><button class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size: 0.6rem;" disabled><i class="bi bi-arrow-repeat"></i> Replicar</button> Copia horário do 1° dia útil para Ter-Sáb (feriados e domingos recebem 14:00-20:00)</small>
                 <small><span class="badge bg-secondary">Folga</span> Marca dia de folga</small>
                 <small class="text-muted">| Double-click preenche horário padrão (10-19h ou 14-20h em feriado/domingo)</small>
+                <small class="text-muted">| Entrada auto-calcula saída (+9h normal, +6h domingo/feriado)</small>
             </div>
         </div>
     </div>
@@ -349,6 +350,31 @@ document.querySelectorAll('.horarios-container').forEach(function(container) {
                     inputs[1].value = '19:00';
                 }
             }
+        }
+    });
+});
+
+// Auto-calcular saída ao preencher entrada: +9h (normal) ou +6h (domingo/feriado)
+document.querySelectorAll('input[type="time"][name^="entrada_"]').forEach(function(input) {
+    input.addEventListener('change', function() {
+        if (!this.value) return;
+        var cell = this.closest('td');
+        var weekday = parseInt(cell.dataset.weekday || '-1');
+        var isFeriado = cell.dataset.feriado === '1';
+        var horas = (weekday === 6 || isFeriado) ? 6 : 9;
+
+        var parts = this.value.split(':');
+        var h = parseInt(parts[0]);
+        var m = parseInt(parts[1]);
+        h += horas;
+        if (h >= 24) h -= 24;
+        var saida = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+
+        // Preencher saída correspondente (mesmo container)
+        var container = this.closest('.horarios-container');
+        var saidaInput = container.querySelector('input[type="time"][name^="saida_"]');
+        if (saidaInput && !saidaInput.value) {
+            saidaInput.value = saida;
         }
     });
 });
